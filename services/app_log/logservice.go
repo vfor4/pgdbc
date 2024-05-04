@@ -1,4 +1,4 @@
-package log
+package applog
 
 import (
 	"io"
@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-var log *stdlog.Logger
+var applog *stdlog.Logger
 
 type logPath string
 
@@ -22,7 +22,7 @@ func (lp logPath) Write(p []byte) (n int, err error) {
 }
 
 func Run(path string) {
-	log = stdlog.New(logPath(path), "", stdlog.LstdFlags)
+	applog = stdlog.New(logPath(path), "", stdlog.LstdFlags)
 }
 
 func RegisterHandler() {
@@ -36,6 +36,6 @@ func RegisterHandler() {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		log.Printf("%v\n", msg)
+		applog.Printf("%v\n", msg)
 	})
 }
