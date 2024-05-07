@@ -13,7 +13,7 @@ var applog *stdlog.Logger
 type logPath string
 
 func (lp logPath) Write(p []byte) (n int, err error) {
-	f, err := os.OpenFile(time.Now().Format("1999-12-01 12:22:22"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	f, err := os.OpenFile(time.Now().Format("2006.01.02"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return 0, nil
 	}
@@ -36,6 +36,6 @@ func RegisterHandler() {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		applog.Printf("%v\n", msg)
+		applog.Printf("%v\n", string(msg))
 	})
 }

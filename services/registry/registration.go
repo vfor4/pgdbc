@@ -5,3 +5,7 @@ type Registration struct {
 }
 
 type ServiceName string
+
+const (
+	LogService = ServiceName("LogService")
+)

@@ -19,7 +19,7 @@ func main() {
 	var r registry.Registration
 	r.ServiceName = registry.LogService
 
-	ctx := runner.Start(context.Background(), host, port, r, applog.RegisterHandler)
+	ctx, _ := runner.Start(context.Background(), host, port, r, applog.RegisterHandler)
 
 	<-ctx.Done()
 	fmt.Println("Shutting down LogService")
