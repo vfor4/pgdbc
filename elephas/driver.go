@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"fmt"
 	"net/url"
 )
 
@@ -28,10 +27,6 @@ func (d *Driver) OpenConnector(dsn string) (driver.Connector, error) {
 		return nil, err
 	}
 	return NewConnector(cfg), nil
-}
-
-func NewConnector(cfg *Config) driver.Connector {
-	return nil
 }
 
 func (d *Driver) parse(dsn string) (*Config, error) {
