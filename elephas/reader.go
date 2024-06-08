@@ -2,6 +2,7 @@ package elephas
 
 import (
 	"bufio"
+	"io"
 )
 
 type Reader struct {
@@ -16,6 +17,11 @@ func (r Reader) ReadMessageType() (byte, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	return b, nil
+}
+
+func (r Reader) ReadManyBytes(size uint) ([]byte, error) {
+	b := make([]byte, size)
+	_, err := io.ReadFull(r, b)
+	return b, err
 }

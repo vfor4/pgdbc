@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 )
 
+const strSeparator byte = 0
+
 type Buffer struct {
 	data bytes.Buffer
 }
@@ -14,13 +16,16 @@ func (b *Buffer) WriteInt32(n int32) {
 	binary.BigEndian.PutUint32(buf, uint32(n))
 	b.data.Write(buf)
 }
+
+func (b *Buffer) WriteString(str string) {
+	b.data.WriteString(str)
+	b.data.Write([]byte{strSeparator})
+}
+
 func (b *Buffer) WriteBytes(data []byte) {
 	b.data.Write(data)
 }
-func (b *Buffer) WriteString(str string) {
-	b.data.WriteString(str)
-	b.data.Write([]byte{','})
-}
+
 func (b *Buffer) CalculateSize(prefix int) {
 	l := b.data.Len()
 	data := b.data.Bytes()
@@ -29,7 +34,4 @@ func (b *Buffer) CalculateSize(prefix int) {
 
 	b.data.Reset()
 	b.data.Write(data)
-}
-func (b *Buffer) Data() []byte {
-	return b.data.Bytes()
 }

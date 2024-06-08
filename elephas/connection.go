@@ -2,8 +2,10 @@ package elephas
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"database/sql/driver"
+	"encoding/binary"
 	"log"
 	"net"
 	"time"
@@ -28,28 +30,46 @@ func (c *Connection) Begin() (driver.Tx, error) {
 	return nil, nil
 }
 
+func buildStartUpMsg() []byte {
+	var b bytes.Buffer
+	b.Write((binary.BigEndian.AppendUint32([]byte{}, 196608)))
+	b.WriteString("user")
+	b.WriteByte(0)
+	b.WriteString("postgres")
+	b.WriteByte(0)
+	b.WriteString("database")
+	b.WriteByte(0)
+	b.WriteString("record")
+	b.WriteByte(0)
+	b.WriteByte(0) // null-terminated c-style string
+	var data []byte
+	data = binary.BigEndian.AppendUint32(data, uint32(len(b.Bytes())+4))
+	data = append(data, b.Bytes()...)
+	return data
+}
+
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
 func (c *Connection) makeHandShake(ctx context.Context) error {
-	var b Buffer
-	// size of data (4 byte) without first byte (message type)
-	b.WriteBytes([]byte{0, 0, 0, 0})
-	b.WriteInt32(196608)
-	b.WriteString("user")
-	b.WriteString(c.cfg.User)
-	b.WriteString("database")
-	b.WriteString(c.cfg.Database)
-	b.WriteBytes([]byte{0})
-
-	b.CalculateSize(0)
-	log.Print(b.Data())
-	if _, err := c.conn.Write(b.Data()); err != nil {
+	if _, err := c.conn.Write(buildStartUpMsg()); err != nil {
+		log.Fatalf("Failed to make hande shake: %v", err)
 		return err
 	}
+
 	msgType, err := c.reader.ReadMessageType()
 	if err != nil {
-		return err
+		log.Fatalf("Failed to get ReadMessageType: %v", err)
 	}
-	log.Print(string(msgType))
+	log.Println(string(msgType))
+
+	switch msgType {
+	case authenticationOKMsg:
+		saslType, err := c.reader.ReadManyBytes(4)
+		if err != nil {
+			log.Printf("Failed to get saslType: %v \n", err)
+			return err
+		}
+		log.Println(saslType)
+	}
 	return nil
 }
 

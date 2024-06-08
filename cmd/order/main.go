@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	_ "order/elephas"
 	"time"
@@ -28,7 +27,7 @@ func main() {
 	if err := db.PingContext(ctx); err != nil {
 		status = "ops"
 	}
-	fmt.Print(status)
+	log.Println(status)
 	// rows, err := db.Query("SELECT * FROM orders WHERE id=$1 ", id)
 	// if err != nil {
 	// 	log.Fatal(err)
