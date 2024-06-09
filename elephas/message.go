@@ -11,4 +11,7 @@ const (
 	noDataMsg           = 'n'
 	passwordMessageMsg  = 'p'
 	terminateMsg        = 'X'
+
+	authenticationSASL         = 10
+	AuthenticationSASLContinue = 11
 )

@@ -2,6 +2,7 @@ package elephas
 
 import (
 	"bufio"
+	"encoding/binary"
 	"io"
 )
 
@@ -12,16 +13,9 @@ type Reader struct {
 func NewReader(r *bufio.Reader) *Reader {
 	return &Reader{r}
 }
-func (r Reader) ReadMessageType() (byte, error) {
-	b, err := r.ReadByte()
-	if err != nil {
-		return 0, err
-	}
-	return b, nil
-}
 
-func (r Reader) ReadManyBytes(size uint) ([]byte, error) {
+func (r Reader) ReadManyBytes(size uint) (uint32, error) {
 	b := make([]byte, size)
 	_, err := io.ReadFull(r, b)
-	return b, err
+	return binary.BigEndian.Uint32(b), err
 }

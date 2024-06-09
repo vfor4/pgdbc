@@ -15,7 +15,7 @@ type Order struct {
 
 func main() {
 	var (
-		dsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+		dsn = "postgres://postgres:postgres@localhost:5432/record"
 	)
 	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
 	defer cancel()

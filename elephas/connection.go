@@ -2,13 +2,15 @@ package elephas
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"database/sql/driver"
-	"encoding/binary"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"time"
+
+	"mellium.im/sasl"
 )
 
 // Conn
@@ -30,45 +32,100 @@ func (c *Connection) Begin() (driver.Tx, error) {
 	return nil, nil
 }
 
-func buildStartUpMsg() []byte {
-	var b bytes.Buffer
-	b.Write((binary.BigEndian.AppendUint32([]byte{}, 196608)))
-	b.WriteString("user")
-	b.WriteByte(0)
-	b.WriteString("postgres")
-	b.WriteByte(0)
-	b.WriteString("database")
-	b.WriteByte(0)
-	b.WriteString("record")
-	b.WriteByte(0)
-	b.WriteByte(0) // null-terminated c-style string
-	var data []byte
-	data = binary.BigEndian.AppendUint32(data, uint32(len(b.Bytes())+4))
-	data = append(data, b.Bytes()...)
-	return data
-}
-
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
 func (c *Connection) makeHandShake(ctx context.Context) error {
-	if _, err := c.conn.Write(buildStartUpMsg()); err != nil {
+	var b Buffer
+	if _, err := c.conn.Write(b.buildStartUpMsg()); err != nil {
 		log.Fatalf("Failed to make hande shake: %v", err)
 		return err
 	}
-
-	msgType, err := c.reader.ReadMessageType()
+	msgType, err := c.reader.ReadByte()
 	if err != nil {
 		log.Fatalf("Failed to get ReadMessageType: %v", err)
 	}
-	log.Println(string(msgType))
+	log.Println("msgType", string(msgType))
+
+	msgLen, err := c.reader.ReadManyBytes(4)
+	if err != nil {
+		log.Fatalf("Failed to get msglen: %v \n", err)
+	}
+	log.Println("msgLen", msgLen)
 
 	switch msgType {
 	case authenticationOKMsg:
-		saslType, err := c.reader.ReadManyBytes(4)
+		authType, err := c.reader.ReadManyBytes(4)
 		if err != nil {
-			log.Printf("Failed to get saslType: %v \n", err)
+			log.Printf("Failed to get authType: %v \n", err)
 			return err
 		}
-		log.Println(saslType)
+		log.Println("authType", authType)
+		if authType == authenticationSASL {
+			saslType, err := c.reader.ReadString(0)
+			if err != nil {
+				log.Printf("Failed to get saslType: %v", saslType)
+			}
+			switch saslType[:len(saslType)-1] {
+			case sasl.ScramSha256.Name:
+				err = c.authSASL(&b)
+				if err != nil {
+					return err
+				}
+			default:
+				panic("TODO ScramSha256Plus")
+			}
+		} else {
+			panic(fmt.Sprint("TODO authType: ", authType))
+		}
+	}
+	return nil
+}
+
+func (c *Connection) authSASL(b *Buffer) error {
+	creds := sasl.Credentials(func() (Username []byte, Password []byte, Identity []byte) {
+		return []byte(c.cfg.User), []byte(c.cfg.Password), []byte{}
+	})
+	client := sasl.NewClient(sasl.ScramSha256, creds)
+	_, resp, err := client.Step(nil) // n,,n=postgres,r= nonce
+	if err != nil {
+		log.Printf("Failed to Step: %v \n", err)
+		return err
+	}
+	_, err = c.conn.Write(b.buildSASLInitialResponse(resp))
+	if err != nil {
+		log.Printf("Failed to send SASLInitialResponse: %v", err)
+		return err
+	}
+	_, _ = c.reader.ReadByte() // get rid of last byte
+	msgType, err := c.reader.ReadByte()
+	if msgType == authenticationOKMsg { //msgAuthenticationSASLContinue
+		msgLen, err := c.reader.ReadManyBytes(4)
+		// i smell some duplicate :<
+		if err != nil {
+			log.Printf("authSASL: Failed to read msgLen: %v \n", err)
+			return err
+		}
+		authType, err := c.reader.ReadManyBytes(4)
+		if authType != AuthenticationSASLContinue {
+			return fmt.Errorf("Expect authType: 11 but got: %v", authType)
+		}
+		authData := make([]byte, msgLen-8)
+		_, err = io.ReadFull(c.reader.Reader, authData) // -8: msgLen, authType
+		if err != nil {
+			log.Printf("Failed to get authData: %v \n", err)
+			return err
+		}
+		_, resp, err = client.Step(authData)
+		if err != nil {
+			log.Printf("Failed to step 2: %v \n", err)
+			return err
+		}
+		_, err = c.conn.Write(b.buildSASLResponse(resp))
+		if err != nil {
+			log.Printf("Failed to send SASLResponse: %v \n", err)
+			return err
+		}
+	} else {
+		return fmt.Errorf("Expect AuthenticationSASLContinue with R letter but got: %v", msgType)
 	}
 	return nil
 }
