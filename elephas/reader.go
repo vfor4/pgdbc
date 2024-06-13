@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 )
 
 type Reader struct {
@@ -36,6 +37,7 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	if respAuthType != authType {
 		return nil, fmt.Errorf("expect authentication type (%v) but got: %v", authType, respAuthType)
 	}
+	log.Println("respAuthType", respAuthType)
 	if l == 0 { // the end of the response
 		return nil, nil
 	}

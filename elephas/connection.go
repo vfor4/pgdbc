@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"database/sql/driver"
-	"fmt"
-	"io"
 	"log"
 	"net"
 	"time"
@@ -25,7 +23,7 @@ func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 }
 
 func (c *Connection) Close() error {
-	return nil
+	return c.conn.Close()
 }
 
 func (c *Connection) Begin() (driver.Tx, error) {
@@ -33,25 +31,68 @@ func (c *Connection) Begin() (driver.Tx, error) {
 }
 
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
-func (c *Connection) makeHandShake(ctx context.Context) error {
+func (c *Connection) makeHandShake() error {
 	var b Buffer
 	if _, err := c.conn.Write(b.buildStartUpMsg()); err != nil {
 		log.Fatalf("Failed to make hande shake: %v", err)
 		return err
 	}
-	data, err := c.reader.handleAuthResp(SASL)
-	if err != nil {
-		log.Fatalf("Failed to handle AuthenticationSASL; %v", err)
-		return err
-	}
-	switch string(string(data[:len(data)-2])) {
-	case sasl.ScramSha256.Name:
-		err = c.authSASL(&b)
+	log.Println("Sent StartupMessage")
+	for {
+		msgType, err := c.reader.ReadByte()
 		if err != nil {
 			return err
 		}
-	default:
-		panic("TODO ScramSha256Plus")
+		msgLen, err := c.reader.ReadManyBytes(4)
+		if err != nil {
+			return err
+		}
+		switch msgType {
+		case authMsgType:
+			if err = c.doAuthentication(b); err != nil {
+				log.Printf("Failed to do authentication: %v", err)
+				return err
+			}
+		case parameterStatus:
+			// https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-ASYNC
+			c.reader.Discard(int(msgLen - 4))
+			log.Println("parameterStatus")
+		case backendKeyData:
+			c.reader.Discard(int(msgLen - 4))
+			log.Println("backendKeyData")
+		case readyForQuery:
+			log.Println("readyForQuery")
+		default:
+			log.Println(string(msgType))
+		}
+	}
+}
+
+func (c *Connection) doAuthentication(b Buffer) error {
+	authType, err := c.reader.ReadManyBytes(4)
+	if err != nil {
+		return err
+	}
+	if authType == SASL {
+		data, err := c.reader.ReadBytes(0)
+		c.reader.ReadByte() // get  rid of last byte
+		if err != nil {
+			log.Fatalf("Failed to handle AuthenticationSASL; %v", err)
+			return err
+		}
+		switch string(string(data[:len(data)-1])) {
+		case sasl.ScramSha256.Name:
+			log.Println("Start SASL authentication")
+			err = c.authSASL(&b)
+			if err != nil {
+				return err
+			}
+			log.Println("Finish SASL authentication")
+		default:
+			panic("TODO ScramSha256Plus")
+		}
+	} else {
+		panic("TODO SASL")
 	}
 	return nil
 }
@@ -71,65 +112,39 @@ func (c *Connection) authSASL(b *Buffer) error {
 		log.Printf("Failed to send SASLInitialResponse: %v", err)
 		return err
 	}
-	_, _ = c.reader.ReadByte() // get rid of last byte
-	msgType, err := c.reader.ReadByte()
-	if msgType == authMsgType { //msgAuthenticationSASLContinue
-		msgLen, err := c.reader.ReadManyBytes(4)
-		// i smell some duplicate :<
-		if err != nil {
-			log.Printf("authSASL: Failed to read msgLen: %v \n", err)
-			return err
-		}
-		authType, err := c.reader.ReadManyBytes(4)
-		if authType != SASLContinue {
-			return fmt.Errorf("Expect authType: 11 but got: %v", authType)
-		}
-		authData := make([]byte, msgLen-8)
-		_, err = io.ReadFull(c.reader.Reader, authData) // -8: msgLen, authType
-		if err != nil {
-			log.Printf("Failed to get authData: %v \n", err)
-			return err
-		}
-		_, resp, err = client.Step(authData)
-		if err != nil {
-			log.Printf("Failed to step 2: %v \n", err)
-			return err
-		}
-		_, err = c.conn.Write(b.buildSASLResponse(resp))
-		if err != nil {
-			log.Printf("Failed to send SASLResponse: %v \n", err)
-			return err
-		}
-		msgType, err = c.reader.ReadByte()
-		if err != nil {
-			log.Printf("Failed to read msgType of AuthenticationSASLContinue: %v \n", msgType)
-			return err
-		}
-		if msgType == authMsgType {
-			msgLen, err = c.reader.ReadManyBytes(4)
-			if err != nil {
-				log.Printf("Failed to read msgLen SASLResponse: %v \n", err)
-				return err
-			}
-			authType, err = c.reader.ReadManyBytes(4)
-			if err != nil {
-				log.Printf("Failed to read authType SASLResponse: %v \n", err)
-				return err
-			}
-			if authType != SASLComplete {
-				return fmt.Errorf("Expect authType of SASLResponse is 12 but got: %v", authType)
-			}
-			authData := make([]byte, msgLen-4)
-			_, err = io.ReadFull(c.reader.Reader, authData)
-			if err != nil {
-				return err
-			}
+	data, err := c.reader.handleAuthResp(SASLContinue)
+	if err != nil {
+		log.Println("Failed to handle AuthenticationSASLContinue")
+		return err
+	}
+	_, resp, err = client.Step(data)
+	if err != nil {
+		log.Printf("Failed to step: %v \n", err)
+		return err
+	}
 
-		} else {
-			return fmt.Errorf("Expect AuthenticationSASLFinal with R letter but got: %v", msgType)
-		}
-	} else {
-		return fmt.Errorf("Expect AuthenticationSASLContinue with R letter but got: %v", msgType)
+	_, err = c.conn.Write(b.buildSASLResponse(resp))
+	if err != nil {
+		log.Printf("Failed to send SASLResponse (Step4): %v \n", err)
+		return err
+	}
+
+	data, err = c.reader.handleAuthResp(SASLComplete)
+	if err != nil {
+		log.Printf("Failed to handle AuthenticationSASLFinal (complete): %v", err)
+		return err
+	}
+	if _, _, err = client.Step(data); err != nil {
+		log.Printf("client.Step 3 failed: %v", err)
+		return err
+	}
+	if client.State() != sasl.ValidServerResponse {
+		log.Printf("invalid server reponse: %v", client.State())
+	}
+	_, err = c.reader.handleAuthResp(AuthSuccess)
+	if err != nil {
+		log.Printf("Failed to handle AuthenticationSASLFinal (success): %v", err)
+		return err
 	}
 	return nil
 }
@@ -149,7 +164,7 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 
 	reader := NewReader(bufio.NewReader(dConn))
 	conn := Connection{conn: dConn, reader: reader, cfg: cfg}
-	if err := conn.makeHandShake(ctx); err != nil {
+	if err := conn.makeHandShake(); err != nil {
 		log.Fatalf("Failed to make handle shake: %v", err)
 		return nil, err
 	}

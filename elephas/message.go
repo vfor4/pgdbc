@@ -2,17 +2,14 @@ package elephas
 
 // https://www.postgresql.org/docs/current/protocol-message-formats.html
 const (
-	commandCompleteMsg = 'C'
-	errorResponseMsg   = 'E'
-	noticeResponseMsg  = 'N'
-	parameterStatusMsg = 'S'
-	authMsgType        = 'R'
-	backendKeyDataMsg  = 'K'
-	noDataMsg          = 'n'
-	passwordMessageMsg = 'p'
-	terminateMsg       = 'X'
+	errorResponseMsg = 'E'
+	parameterStatus  = 'S'
+	authMsgType      = 'R'
+	backendKeyData   = 'K'
+	readyForQuery    = 'Z'
 
 	SASL         = 10
 	SASLContinue = 11
 	SASLComplete = 12
+	AuthSuccess  = 0
 )
