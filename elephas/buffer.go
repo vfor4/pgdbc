@@ -56,3 +56,15 @@ func (b *Buffer) buildSASLResponse(saslChallenge []byte) []byte {
 	b.Reset()
 	return data
 }
+
+func (b *Buffer) buildQuery(query []byte) []byte {
+	b.WriteByte('Q')
+	initLen := []byte{0, 0, 0, 0}
+	binary.BigEndian.PutUint32(initLen, uint32(len(query)+5)) //4: the length itself; 1:the c-string ending
+	b.Write(initLen)
+	b.Write(query)
+	b.WriteByte(0)
+	data := b.Bytes()
+	b.Reset()
+	return data
+}

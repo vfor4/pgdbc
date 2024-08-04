@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	_ "order/elephas"
 	"time"
@@ -15,7 +16,8 @@ type Order struct {
 
 func main() {
 	var (
-		dsn = "postgres://postgres:postgres@localhost:5432/record"
+		orders []*Order
+		dsn    = "postgres://postgres:postgres@localhost:5432/record"
 	)
 	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
 	defer cancel()
@@ -28,22 +30,22 @@ func main() {
 		status = "ops"
 	}
 	log.Println(status)
-	// rows, err := db.Query("SELECT * FROM orders WHERE id=$1 ", id)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// for rows.Next() {
-	// 	var o Order
+	rows, err := db.Query("SELECT * FROM orders")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var o Order
 
-	// 	if err := rows.Scan(&o.ID, &o.Name); err != nil {
-	// 		log.Fatal(err)
-	// 	}
+		if err := rows.Scan(&o.ID, &o.Name); err != nil {
+			log.Fatal(err)
+		}
 
-	// 	orders = append(orders, &o)
-	// }
+		orders = append(orders, &o)
+	}
 
-	// if err := rows.Err(); err != nil {
-	// 	log.Fatal(err)
-	// }
-	// fmt.Print(orders)
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print(orders)
 }

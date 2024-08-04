@@ -7,6 +7,7 @@ const (
 	authMsgType      = 'R'
 	backendKeyData   = 'K'
 	readyForQuery    = 'Z'
+	rowDescription   = 'T'
 
 	SASL         = 10
 	SASLContinue = 11

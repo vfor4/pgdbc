@@ -19,15 +19,15 @@ type Connection struct {
 }
 
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
-	return nil, nil
+	panic("not implement")
 }
 
 func (c *Connection) Close() error {
-	return c.conn.Close()
+	panic("not implement")
 }
 
 func (c *Connection) Begin() (driver.Tx, error) {
-	return nil, nil
+	panic("not implement")
 }
 
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
@@ -43,7 +43,7 @@ func (c *Connection) makeHandShake() error {
 		if err != nil {
 			return err
 		}
-		msgLen, err := c.reader.ReadManyBytes(4)
+		msgLen, err := c.reader.ReadBytesToUint32(4)
 		if err != nil {
 			return err
 		}
@@ -62,6 +62,8 @@ func (c *Connection) makeHandShake() error {
 			log.Println("backendKeyData")
 		case readyForQuery:
 			log.Println("readyForQuery")
+			c.reader.Discard(int(msgLen - 4))
+			return nil
 		default:
 			log.Println(string(msgType))
 		}
@@ -69,7 +71,7 @@ func (c *Connection) makeHandShake() error {
 }
 
 func (c *Connection) doAuthentication(b Buffer) error {
-	authType, err := c.reader.ReadManyBytes(4)
+	authType, err := c.reader.ReadBytesToUint32(4)
 	if err != nil {
 		return err
 	}
@@ -160,7 +162,6 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 		log.Fatalf("Failed to dial: %v", err)
 		return nil, err
 	}
-	defer dConn.Close()
 
 	reader := NewReader(bufio.NewReader(dConn))
 	conn := Connection{conn: dConn, reader: reader, cfg: cfg}
@@ -170,4 +171,19 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 	}
 
 	return &conn, nil
+}
+
+func (c *Connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	var b Buffer
+	_, err := c.conn.Write(b.buildQuery([]byte(query)))
+	if err != nil {
+		log.Printf("Failed to send Query: %v", err)
+		return nil, err
+	}
+
+	rows, err := c.reader.readRowDescription()
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
