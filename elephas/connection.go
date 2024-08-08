@@ -185,5 +185,5 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 	if err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return (&rows), nil
 }

@@ -7,10 +7,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strconv"
 )
 
 type Reader struct {
 	*bufio.Reader
+}
+
+type DataRow struct {
 }
 
 func NewReader(r *bufio.Reader) *Reader {
@@ -21,6 +25,22 @@ func (r Reader) ReadBytesToUint32(size uint) (uint32, error) {
 	b := make([]byte, size)
 	_, err := io.ReadFull(r, b)
 	return binary.BigEndian.Uint32(b), err
+}
+
+func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
+	b := make([]byte, size)
+	_, err := io.ReadFull(r, b)
+	switch dataType {
+	case 23:
+		v, err := strconv.Atoi(string(b))
+		if err != nil {
+			return nil, nil
+		}
+		return v, nil
+	case 25:
+		return string(b), nil
+	}
+	return nil, err
 }
 
 func (r Reader) ReadBytesToUint16(size uint) (uint16, error) {
@@ -73,6 +93,21 @@ func (r Reader) readRowDescription() (Rows, error) {
 		return Rows{}, errors.New("readRowDescription: Failed to read fieldCount")
 	}
 	log.Println(msgLen, fieldCount)
-	log.Println(r.ReadString(0))
-	return Rows{}, nil
+	var rows Rows
+	for i := 0; i < int(fieldCount); i++ {
+		fieldName, err := r.ReadString(0)
+		if err != nil {
+			return Rows{}, errors.New("readRowDescription: Failed to read fieldName")
+		}
+		rows.cols = append(rows.cols, fieldName)
+		r.Discard(4 + 2)
+		oid, err := r.ReadBytesToUint32(4)
+		if err != nil {
+			return Rows{}, errors.New("readRowDescription: Failed to read fieldName")
+		}
+		rows.oids = append(rows.oids, int(oid))
+		r.Discard(2 + 4 + 2)
+	}
+	rows.reader = &r
+	return rows, nil
 }

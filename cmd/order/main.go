@@ -45,7 +45,7 @@ func main() {
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Fatal(err)
+		log.Fatal("main ", err)
 	}
 	fmt.Print(orders)
 }
