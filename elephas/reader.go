@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"strconv"
 )
 
@@ -76,7 +77,7 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	return d, nil
 }
 
-func (r Reader) readRowDescription() (Rows, error) {
+func (r Reader) readRowDescription(conn net.Conn) (Rows, error) {
 	msgType, err := r.ReadByte()
 	if err != nil {
 		return Rows{}, err
@@ -109,5 +110,6 @@ func (r Reader) readRowDescription() (Rows, error) {
 		r.Discard(2 + 4 + 2)
 	}
 	rows.reader = &r
+	rows.conn = conn
 	return rows, nil
 }

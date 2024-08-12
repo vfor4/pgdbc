@@ -180,8 +180,7 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 		log.Printf("Failed to send Query: %v", err)
 		return nil, err
 	}
-
-	rows, err := c.reader.readRowDescription()
+	rows, err := c.reader.readRowDescription(c.conn)
 	if err != nil {
 		return nil, err
 	}

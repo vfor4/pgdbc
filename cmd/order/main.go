@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	_ "order/elephas"
 	"time"
@@ -47,5 +46,5 @@ func main() {
 	if err := rows.Err(); err != nil {
 		log.Fatal("main ", err)
 	}
-	fmt.Print(orders)
+	log.Println(orders[0], orders[1])
 }

@@ -8,6 +8,8 @@ const (
 	backendKeyData   = 'K'
 	readyForQuery    = 'Z'
 	rowDescription   = 'T'
+	dataRow          = 'D'
+	commandComlete   = 'C'
 
 	SASL         = 10
 	SASLContinue = 11
