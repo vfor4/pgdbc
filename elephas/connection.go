@@ -26,8 +26,13 @@ func (c *Connection) Close() error {
 	panic("not implement")
 }
 
+// deprecated function, use BeginTx instead
 func (c *Connection) Begin() (driver.Tx, error) {
 	panic("not implement")
+}
+
+func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	return nil, nil
 }
 
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
@@ -174,6 +179,7 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 }
 
 func (c *Connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	log.Println(args)
 	var b Buffer
 	_, err := c.conn.Write(b.buildQuery([]byte(query)))
 	if err != nil {
