@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 )
 
@@ -47,6 +48,7 @@ func (r *Rows) readDataRow(dest []driver.Value) error {
 	if err != nil {
 		return errors.New("readDataRow: Failed to read fieldCount")
 	}
+	log.Println(fieldCount)
 	for i := 0; i < int(fieldCount); i++ {
 		colLen, err := r.reader.ReadBytesToUint32(4)
 		if err != nil {

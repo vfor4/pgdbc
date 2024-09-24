@@ -61,12 +61,9 @@ func (c *Connection) makeHandShake() error {
 		case parameterStatus:
 			// https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-ASYNC
 			c.reader.Discard(int(msgLen - 4))
-			log.Println("parameterStatus")
 		case backendKeyData:
 			c.reader.Discard(int(msgLen - 4))
-			log.Println("backendKeyData")
 		case readyForQuery:
-			log.Println("readyForQuery")
 			c.reader.Discard(int(msgLen - 4))
 			return nil
 		default:
@@ -179,9 +176,8 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 }
 
 func (c *Connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	log.Println(args)
 	var b Buffer
-	_, err := c.conn.Write(b.buildQuery([]byte(query)))
+	_, err := c.conn.Write(b.writeQuery(query, args))
 	if err != nil {
 		log.Printf("Failed to send Query: %v", err)
 		return nil, err

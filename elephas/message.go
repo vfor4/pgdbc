@@ -10,6 +10,7 @@ const (
 	rowDescription   = 'T'
 	dataRow          = 'D'
 	commandComlete   = 'C'
+	parseCommand     = 'F'
 
 	SASL         = 10
 	SASLContinue = 11

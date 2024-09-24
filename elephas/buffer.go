@@ -2,7 +2,11 @@ package elephas
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/binary"
+	"fmt"
+	"log"
+	"strings"
 
 	"mellium.im/sasl"
 )
@@ -57,14 +61,27 @@ func (b *Buffer) buildSASLResponse(saslChallenge []byte) []byte {
 	return data
 }
 
-func (b *Buffer) buildQuery(query []byte) []byte {
+func (b *Buffer) writeQuery(query string, args []driver.NamedValue) []byte {
+	finalQuery := query
+	for _, arg := range args {
+		finalQuery = strings.Replace(finalQuery, "?", aToString(arg.Value), 1)
+	}
+	log.Println(finalQuery)
 	b.WriteByte('Q')
 	initLen := []byte{0, 0, 0, 0}
-	binary.BigEndian.PutUint32(initLen, uint32(len(query)+5)) //4: the length itself; 1:the c-string ending
+	binary.BigEndian.PutUint32(initLen, uint32(len(finalQuery)+5)) //4: the length itself; 1:the c-string ending
 	b.Write(initLen)
-	b.Write(query)
+	b.WriteString(finalQuery)
 	b.WriteByte(0)
 	data := b.Bytes()
 	b.Reset()
 	return data
+}
+
+func aToString(value driver.Value) string {
+	s, ok := value.(string)
+	if !ok {
+		return fmt.Sprintf("%v", value)
+	}
+	return fmt.Sprintf("'%v'", s)
 }

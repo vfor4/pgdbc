@@ -31,6 +31,9 @@ func (r Reader) ReadBytesToUint32(size uint) (uint32, error) {
 func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
 	b := make([]byte, size)
 	_, err := io.ReadFull(r, b)
+	if err != nil {
+		return nil, err
+	}
 	switch dataType {
 	case 23:
 		v, err := strconv.Atoi(string(b))
@@ -40,8 +43,11 @@ func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
 		return v, nil
 	case 25:
 		return string(b), nil
+	case 16:
+		return strconv.ParseBool(string(b))
+	default:
+		panic(fmt.Sprintf("the OID type %v is not implemented", dataType))
 	}
-	return nil, err
 }
 
 func (r Reader) ReadBytesToUint16(size uint) (uint16, error) {
@@ -65,7 +71,6 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	if respAuthType != authType {
 		return nil, fmt.Errorf("expect authentication type (%v) but got: %v", authType, respAuthType)
 	}
-	log.Println("respAuthType", respAuthType)
 	if l == 0 { // the end of the response
 		return nil, nil
 	}
@@ -104,7 +109,7 @@ func (r Reader) readRowDescription(conn net.Conn) (Rows, error) {
 		r.Discard(4 + 2)
 		oid, err := r.ReadBytesToUint32(4)
 		if err != nil {
-			return Rows{}, errors.New("readRowDescription: Failed to read fieldName")
+			return Rows{}, errors.New("readRowDescription: Failed to read oid")
 		}
 		rows.oids = append(rows.oids, int(oid))
 		r.Discard(2 + 4 + 2)
