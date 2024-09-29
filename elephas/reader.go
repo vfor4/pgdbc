@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 )
 
 type Reader struct {
@@ -26,6 +27,44 @@ func (r Reader) ReadBytesToUint32(size uint) (uint32, error) {
 	b := make([]byte, size)
 	_, err := io.ReadFull(r, b)
 	return binary.BigEndian.Uint32(b), err
+}
+
+func (r Reader) ReadBytesToUint16(size uint) (uint16, error) {
+	b := make([]byte, size)
+	_, err := io.ReadFull(r, b)
+	return binary.BigEndian.Uint16(b), err
+}
+
+func (r Reader) ReadBeginTxResponse() (string, error) {
+	if t, err := r.ReadByte(); err != nil {
+		return "", errors.New("unable to read msg type")
+	} else if t != commandComlete {
+		return "", fmt.Errorf("expect msg type is commandComplete but got (%v)", t)
+	}
+	_, err := r.ReadBytesToUint32(4)
+	if err != nil {
+		return "", err
+	}
+	cmdTag, err := r.ReadString(0)
+	return strings.Trim(cmdTag, "\x00"), nil
+}
+
+func (r Reader) ReadReadyForQuery() (TransactionStatus, error) {
+	if t, err := r.ReadByte(); err != nil {
+		return E, errors.New("unable to read msg type")
+	} else if t != readyForQuery {
+		return E, fmt.Errorf("expect msg type is commandComplete but got (%v)", t)
+	}
+	_, err := r.ReadBytesToUint32(4)
+	if err != nil {
+		return E, err
+	}
+	txStatus, err := r.ReadByte()
+	if err != nil {
+		return E, err
+	}
+	log.Printf("txStatus (%v)", txStatus)
+	return TransactionStatus(txStatus), nil
 }
 
 func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
@@ -50,12 +89,6 @@ func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
 	}
 }
 
-func (r Reader) ReadBytesToUint16(size uint) (uint16, error) {
-	b := make([]byte, size)
-	_, err := io.ReadFull(r, b)
-	return binary.BigEndian.Uint16(b), err
-}
-
 func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	if t, err := r.Reader.ReadByte(); err != nil {
 		return nil, err
@@ -74,7 +107,6 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	if l == 0 { // the end of the response
 		return nil, nil
 	}
-	// i like those letters 't', 'l'. They confuse the reader, haha
 	d := make([]byte, l)
 	if _, err := io.ReadFull(r.Reader, d); err != nil {
 		return nil, err
