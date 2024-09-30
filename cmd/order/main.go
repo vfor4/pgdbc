@@ -44,30 +44,31 @@ func toWrite(db *sql.DB, ctx context.Context) (int64, error) {
 	if err != nil {
 		return fail(err)
 	}
-	log.Println(tx)
 	// Defer a rollback in case anything fails.
-	// defer tx.Rollback()
+	defer tx.Rollback()
 
 	// Confirm that album inventory is enough for the order.
-	// var enough bool
-	// const (
-	// 	productName = "iphone"
-	// 	quantity    = 5
-	// )
-	// if err = tx.QueryRowContext(ctx, "SELECT (quantity >= ?) as enough from orders where name = ?", 10, productName).
-	// 	Scan(&enough); err != nil {
-	// 	if err == sql.ErrNoRows {
-	// 		return fail(fmt.Errorf("no such product"))
-	// 	}
-	// 	return fail(err)
-	// }
-	// if !enough {
-	// 	return fail(fmt.Errorf("not enough inventory"))
-	// }
-	// _, err = tx.ExecContext(ctx, "UPDATE orders SET quantity = quantity - ? WHERE name = ?", quantity, productName)
-	// if err != nil {
-	// 	return fail(err)
-	// }
+	var enough bool
+	const (
+		productName = "iphone"
+		quantity    = 5
+	)
+	if err = tx.QueryRowContext(ctx, "SELECT (quantity >= ?) as enough from orders where name = ?", quantity, productName).
+		Scan(&enough); err != nil {
+		if err == sql.ErrNoRows {
+			return fail(fmt.Errorf("no such product"))
+		}
+		return fail(err)
+	}
+	if !enough {
+		return fail(fmt.Errorf("not enough inventory"))
+	} else {
+		log.Printf("we have more than %v %v(s) in stock\n", quantity, productName)
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE orders SET quantity = quantity - ? WHERE name = ?", quantity, productName)
+	if err != nil {
+		return fail(err)
+	}
 	//
 	// // Create a new row in the album_order table.
 	// result, err := tx.ExecContext(ctx, "INSERT INTO orders (id, name, quantity, date) VALUES (?, ?, ?, ?)",

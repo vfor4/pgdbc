@@ -26,3 +26,12 @@ const (
 	T TransactionStatus = 84
 	E TransactionStatus = 69
 )
+
+type CommandTag string
+
+// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COMMANDCOMPLETE
+const (
+	beginCmd    CommandTag = "BEGIN"
+	rollbackCmd CommandTag = "ROLLBACK"
+	commitCmd   CommandTag = "COMMIT"
+)

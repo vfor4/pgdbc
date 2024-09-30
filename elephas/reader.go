@@ -35,7 +35,7 @@ func (r Reader) ReadBytesToUint16(size uint) (uint16, error) {
 	return binary.BigEndian.Uint16(b), err
 }
 
-func (r Reader) ReadBeginTxResponse() (string, error) {
+func (r Reader) ReadCommandComplete() (string, error) {
 	if t, err := r.ReadByte(); err != nil {
 		return "", errors.New("unable to read msg type")
 	} else if t != commandComlete {

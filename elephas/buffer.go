@@ -61,7 +61,7 @@ func (b *Buffer) buildSASLResponse(saslChallenge []byte) []byte {
 	return data
 }
 
-func (b *Buffer) writeQuery(query string, args []driver.NamedValue) []byte {
+func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 	finalQuery := query
 	for _, arg := range args {
 		finalQuery = strings.Replace(finalQuery, "?", aToString(arg.Value), 1)

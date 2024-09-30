@@ -16,17 +16,33 @@ import (
 
 // Conn
 type Connection struct {
-	cfg    *Config
-	conn   net.Conn
-	reader *Reader
+	cfg     *Config
+	netConn net.Conn
+	reader  *Reader
 }
 
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
-	panic("not implemented")
+	return &Stmt{}, nil
 }
 
+func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	var b Buffer
+	_, err := c.netConn.Write(b.buildQuery(query, args))
+	if err != nil {
+		log.Printf("Failed to send Query: %v", err)
+		return nil, err
+	}
+	return nil, nil
+}
+
+// PrepareContext returns a prepared statement, bound to this connection.
+// context is for the preparation of the statement,
+// it must not store the context within the statement itself.
+func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+	return c.Prepare(query)
+}
 func (c *Connection) Close() error {
-	return c.conn.Close()
+	panic("todo close connection")
 }
 
 // deprecated function, use BeginTx instead
@@ -36,38 +52,37 @@ func (c *Connection) Begin() (driver.Tx, error) {
 
 func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
-		return nil, errors.New("not implemented")
+		return nil, errors.New("Not implemented")
 	}
 	if opts.ReadOnly {
-		return nil, errors.New("not implemented")
+		return nil, errors.New("Not implemented")
 	}
 	var b Buffer
-	_, err := c.conn.Write(b.writeQuery("Begin", nil))
+	_, err := c.netConn.Write(b.buildQuery("Begin", nil))
 	if err != nil {
 		return nil, err
 	}
-	cmdTag, err := c.reader.ReadBeginTxResponse()
+	cmdTag, err := c.reader.ReadCommandComplete()
 	if err != nil {
-		return nil, fmt.Errorf("unable to ReadAndExpect(%v)", commandComlete)
+		return nil, fmt.Errorf("Unable to ReadAndExpect(%v)", commandComlete)
 	}
-	if cmdTag != "BEGIN" {
-		return nil, fmt.Errorf("expect BEGIN command tag but got (%v)", cmdTag)
+	if cmdTag != string(beginCmd) {
+		return nil, fmt.Errorf("Expect BEGIN command tag but got (%v)", cmdTag)
 	}
 	txStatus, err := c.reader.ReadReadyForQuery()
 	if err != nil {
-		return nil, fmt.Errorf("unable to ReadAndExpect(%v)", txStatus)
+		return nil, fmt.Errorf("Expecte to ReadAndExpect(%v)", txStatus)
 	}
 	if txStatus == T {
 		log.Println("in tx")
 	}
-
-	return NewTransaction(), nil
+	return NewTransaction(c), nil
 }
 
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
 func (c *Connection) makeHandShake() error {
 	var b Buffer
-	if _, err := c.conn.Write(b.buildStartUpMsg()); err != nil {
+	if _, err := c.netConn.Write(b.buildStartUpMsg()); err != nil {
 		log.Fatalf("Failed to make hande shake: %v", err)
 		return err
 	}
@@ -140,7 +155,7 @@ func (c *Connection) authSASL(b *Buffer) error {
 		log.Printf("Failed to Step: %v \n", err)
 		return err
 	}
-	_, err = c.conn.Write(b.buildSASLInitialResponse(resp))
+	_, err = c.netConn.Write(b.buildSASLInitialResponse(resp))
 	if err != nil {
 		log.Printf("Failed to send SASLInitialResponse: %v", err)
 		return err
@@ -156,7 +171,7 @@ func (c *Connection) authSASL(b *Buffer) error {
 		return err
 	}
 
-	_, err = c.conn.Write(b.buildSASLResponse(resp))
+	_, err = c.netConn.Write(b.buildSASLResponse(resp))
 	if err != nil {
 		log.Printf("Failed to send SASLResponse (Step4): %v \n", err)
 		return err
@@ -194,7 +209,7 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 		return nil, err
 	}
 	reader := NewReader(bufio.NewReader(dConn))
-	conn := Connection{conn: dConn, reader: reader, cfg: cfg}
+	conn := Connection{netConn: dConn, reader: reader, cfg: cfg}
 	if err := conn.makeHandShake(); err != nil {
 		log.Fatalf("Failed to make handle shake: %v", err)
 		return nil, err
@@ -205,12 +220,12 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 
 func (c *Connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	var b Buffer
-	_, err := c.conn.Write(b.writeQuery(query, args))
+	_, err := c.netConn.Write(b.buildQuery(query, args))
 	if err != nil {
 		log.Printf("Failed to send Query: %v", err)
 		return nil, err
 	}
-	rows, err := c.reader.readRowDescription(c.conn)
+	rows, err := c.reader.readRowDescription(c.netConn)
 	if err != nil {
 		return nil, err
 	}
