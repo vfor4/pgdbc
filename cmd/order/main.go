@@ -44,8 +44,6 @@ func toWrite(db *sql.DB, ctx context.Context) (int64, error) {
 	if err != nil {
 		return fail(err)
 	}
-	// Defer a rollback in case anything fails.
-	defer tx.Rollback()
 
 	// Confirm that album inventory is enough for the order.
 	var enough bool
@@ -67,7 +65,10 @@ func toWrite(db *sql.DB, ctx context.Context) (int64, error) {
 	}
 	_, err = tx.ExecContext(ctx, "UPDATE orders SET quantity = quantity - ? WHERE name = ?", quantity, productName)
 	if err != nil {
+		tx.Rollback()
 		return fail(err)
+	} else {
+		tx.Commit()
 	}
 	//
 	// // Create a new row in the album_order table.
