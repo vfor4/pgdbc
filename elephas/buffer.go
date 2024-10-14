@@ -45,7 +45,7 @@ func (b *Buffer) buildSASLInitialResponse(initClientResp []byte) []byte {
 	b.Write(initLen)
 	b.Write(initClientResp)
 	data := b.Bytes()
-	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1)) // dont count letter 'p'
+	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1)) //  count letter 'p'
 	b.Reset()
 	return data
 }
@@ -67,13 +67,32 @@ func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 		finalQuery = strings.Replace(finalQuery, "?", aToString(arg.Value), 1)
 	}
 	log.Println(finalQuery)
-	b.WriteByte('Q')
+	b.WriteByte(queryCommand)
 	initLen := []byte{0, 0, 0, 0}
 	binary.BigEndian.PutUint32(initLen, uint32(len(finalQuery)+5)) //4: the length itself; 1:the c-string ending
 	b.Write(initLen)
 	b.WriteString(finalQuery)
 	b.WriteByte(0)
 	data := b.Bytes()
+	b.Reset()
+	return data
+}
+
+// TODO have to refactor
+func (b *Buffer) buidParseCmd(query string) []byte {
+	b.WriteByte(parseCommand)
+	b.Write([]byte{0, 0, 0, 0})
+	b.WriteString("test")
+	b.WriteByte(0)
+
+	b.WriteString(query)
+	b.WriteByte(0)
+
+	b.Write([]byte{0, 0}) // number of params
+	data := b.Bytes()
+	fmt.Printf("%#v\n", data)
+	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
+	fmt.Printf("%#v\n", data)
 	b.Reset()
 	return data
 }

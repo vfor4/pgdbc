@@ -28,10 +28,29 @@ func main() {
 		fmt.Print("opps")
 		return
 	}
-	_, err = toWrite(db, ctx)
+	err = toPrepare(db, ctx)
 	if err != nil {
 		log.Printf("failed toWrite, %v", err)
 	}
+}
+
+func toPrepare(db *sql.DB, ctx context.Context) error {
+	printErr := func(err error) error {
+		fmt.Println(err)
+		return err
+	}
+	stmt, err := db.PrepareContext(ctx, "select * from orders")
+
+	if err != nil {
+		return printErr(err)
+	}
+	rows, err := stmt.Query()
+	if err != nil {
+		return printErr(err)
+	}
+	fmt.Println(rows)
+
+	return nil
 }
 
 func toWrite(db *sql.DB, ctx context.Context) (int64, error) {

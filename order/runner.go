@@ -23,7 +23,7 @@ func startService(ctx context.Context, host, port string) context.Context {
 	}()
 
 	go func() {
-		fmt.Println("Order service started, press any keys to shutdown")
+		fmt.Println("service started, press any keys to shutdown")
 		var s string
 		fmt.Scanln(&s)
 		err := srv.Shutdown(ctx)

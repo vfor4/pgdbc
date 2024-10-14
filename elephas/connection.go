@@ -21,10 +21,6 @@ type Connection struct {
 	reader  *Reader
 }
 
-func (c *Connection) Prepare(query string) (driver.Stmt, error) {
-	return &Stmt{}, nil
-}
-
 func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	var b Buffer
 	_, err := c.netConn.Write(b.buildQuery(query, args))
@@ -41,6 +37,18 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	return c.Prepare(query)
 }
+
+func (c *Connection) Prepare(query string) (driver.Stmt, error) {
+	var b Buffer
+	parseCmd := b.buidParseCmd(query)
+	_, err := c.netConn.Write(parseCmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Stmt{}, nil
+}
+
 func (c *Connection) Close() error {
 	panic("todo close connection")
 }

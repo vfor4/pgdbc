@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
@@ -78,12 +79,8 @@ var resultsTemplate = template.Must(template.New("results").Parse(`
 </html>
 `))
 
-func fromRequest(req *http.Request) (string, error) {
-	return "", nil
-}
-
 func newContext(ctx context.Context, value string) context.Context {
-	return nil
+	return context.WithValue(ctx, "cx", value)
 }
 
 func search(ctx context.Context, query string) (Results, error) {
@@ -110,9 +107,28 @@ func search(ctx context.Context, query string) (Results, error) {
 
 	var results Results
 	err = httpDo(ctx, req, func(resp *http.Response, err error) error {
-		if err 
+		time.Sleep(2 * time.Second)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		var data struct {
+			Items []struct {
+				HtmlTitle    string
+				FormattedUrl string
+			}
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+			return err
+		}
+		for _, res := range data.Items {
+			results = append(results, Result{Title: res.HtmlTitle, URL: res.FormattedUrl})
+		}
+		return nil
+
 	})
-	return nil, nil
+	return results, err
 }
 
 func httpDo(ctx context.Context, req *http.Request, f func(*http.Response, error) error) error {

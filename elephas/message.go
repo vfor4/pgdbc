@@ -10,7 +10,10 @@ const (
 	rowDescription   = 'T'
 	dataRow          = 'D'
 	commandComlete   = 'C'
-	parseCommand     = 'F'
+	queryCommand     = 'Q'
+	parseCommand     = 'P'
+	bindCommand      = 'B'
+	executeCommand   = 'E'
 
 	SASL         = 10
 	SASLContinue = 11

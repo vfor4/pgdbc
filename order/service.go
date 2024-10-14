@@ -1,8 +1,6 @@
 package order
 
 import (
-	"database/sql"
-	"fmt"
 	"net/http"
 )
 
@@ -14,6 +12,4 @@ func RegisterHandlers() {
 type orderHandler struct{}
 
 func (oh orderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	sql.NullString
 }

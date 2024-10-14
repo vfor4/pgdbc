@@ -21,7 +21,8 @@ func (r *Rows) Columns() []string {
 }
 
 func (r *Rows) Close() error {
-	return r.conn.Close()
+	// panic causes infinite loop
+	return nil
 }
 
 func (r *Rows) Next(dest []driver.Value) error {
