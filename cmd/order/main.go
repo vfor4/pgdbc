@@ -40,11 +40,10 @@ func toPrepare(db *sql.DB, ctx context.Context) error {
 		return err
 	}
 	stmt, err := db.PrepareContext(ctx, "select * from orders")
-
 	if err != nil {
 		return printErr(err)
 	}
-	rows, err := stmt.Query()
+	rows, err := stmt.QueryContext(context.Background())
 	if err != nil {
 		return printErr(err)
 	}

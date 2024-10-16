@@ -79,10 +79,10 @@ func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 }
 
 // TODO have to refactor
-func (b *Buffer) buidParseCmd(query string) []byte {
+func (b *Buffer) buidParseCmd(query string, name string) []byte {
 	b.WriteByte(parseCommand)
 	b.Write([]byte{0, 0, 0, 0})
-	b.WriteString("test")
+	b.WriteString(name)
 	b.WriteByte(0)
 
 	b.WriteString(query)
@@ -93,6 +93,40 @@ func (b *Buffer) buidParseCmd(query string) []byte {
 	fmt.Printf("%#v\n", data)
 	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
 	fmt.Printf("%#v\n", data)
+	b.Reset()
+	return data
+}
+
+func (b *Buffer) buidBindCmd(nameStmt string) []byte {
+	b.WriteByte(bindCommand)
+	b.Write([]byte{0, 0, 0, 0})
+	b.WriteString("testportal")
+	b.WriteByte(0)
+
+	b.WriteString(nameStmt)
+	b.WriteByte(0)
+
+	b.Write([]byte{0, 0})
+	b.Write([]byte{0, 0})
+
+	b.Write([]byte{0, 1}) // number of param
+
+	b.Write([]byte{0, 0}) // number of result-column
+
+	data := b.Bytes()
+	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
+	b.Reset()
+	return data
+}
+
+func (b *Buffer) buildExecuteCmd(namePortal string) []byte {
+	b.WriteByte(executeCommand)
+	b.Write([]byte{0, 0, 0, 0})
+	b.WriteString(namePortal)
+	b.WriteByte(0)
+	b.Write([]byte{0, 0, 0, 0}) // no limit on row
+	data := b.Bytes()
+	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
 	b.Reset()
 	return data
 }

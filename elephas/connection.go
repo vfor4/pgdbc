@@ -40,13 +40,14 @@ func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.S
 
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 	var b Buffer
-	parseCmd := b.buidParseCmd(query)
+	name := "test"
+	parseCmd := b.buidParseCmd(query, name)
 	_, err := c.netConn.Write(parseCmd)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Stmt{}, nil
+	return &Stmt{netConn: c.netConn, namedStmt: name}, nil
 }
 
 func (c *Connection) Close() error {
@@ -228,6 +229,7 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 
 func (c *Connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	var b Buffer
+	log.Println("query context")
 	_, err := c.netConn.Write(b.buildQuery(query, args))
 	if err != nil {
 		log.Printf("Failed to send Query: %v", err)
