@@ -88,30 +88,42 @@ func (b *Buffer) buidParseCmd(query string, name string) []byte {
 	b.WriteString(query)
 	b.WriteByte(0)
 
-	b.Write([]byte{0, 0}) // number of params
+	b.Write([]byte{0, 1}) // number of params
+	paramId := []byte{0, 0, 0, 0}
+	binary.BigEndian.PutUint32(paramId, uint32(23))
+	b.Write(paramId)
 	data := b.Bytes()
-	fmt.Printf("%#v\n", data)
 	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
-	fmt.Printf("%#v\n", data)
 	b.Reset()
 	return data
 }
 
-func (b *Buffer) buidBindCmd(nameStmt string) []byte {
+func (b *Buffer) buildFlushCmd() []byte {
+	b.WriteByte(flushCommand)
+	b.Write([]byte{0, 0, 0, 0})
+	data := b.Bytes()
+	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
+	b.Reset()
+	return data
+}
+func (b *Buffer) buildBindCmd(nameStmt string, portalName string) []byte {
 	b.WriteByte(bindCommand)
 	b.Write([]byte{0, 0, 0, 0})
-	b.WriteString("testportal")
+	b.WriteString(portalName)
 	b.WriteByte(0)
 
 	b.WriteString(nameStmt)
 	b.WriteByte(0)
 
-	b.Write([]byte{0, 0})
-	b.Write([]byte{0, 0})
+	b.Write([]byte{0, 1}) // number of param format
+	b.Write([]byte{0, 1}) // param format code 0: text 1: binary
 
-	b.Write([]byte{0, 1}) // number of param
+	b.Write([]byte{0, 1}) // number of param value
+	binary.Write(b, binary.BigEndian, int32(4))
+	binary.Write(b, binary.BigEndian, int32(5))
 
-	b.Write([]byte{0, 0}) // number of result-column
+	binary.Write(b, binary.BigEndian, int16(1)) // result col
+	binary.Write(b, binary.BigEndian, int16(0)) // result col format 0:text 1:binary
 
 	data := b.Bytes()
 	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
@@ -125,6 +137,27 @@ func (b *Buffer) buildExecuteCmd(namePortal string) []byte {
 	b.WriteString(namePortal)
 	b.WriteByte(0)
 	b.Write([]byte{0, 0, 0, 0}) // no limit on row
+	data := b.Bytes()
+	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
+	b.Reset()
+	return data
+}
+
+func (b *Buffer) buildSync() []byte {
+	b.WriteByte(syncCommand)
+	b.Write([]byte{0, 0, 0, 0})
+	data := b.Bytes()
+	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
+	b.Reset()
+	return data
+}
+
+func (b *Buffer) buildDescribe(name string) []byte {
+	b.WriteByte(describeCommand)
+	b.Write([]byte{0, 0, 0, 0})
+	b.WriteByte(byte('P')) // S: statement ; P: portal
+	b.WriteString(name)
+	b.WriteByte(0)
 	data := b.Bytes()
 	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
 	b.Reset()

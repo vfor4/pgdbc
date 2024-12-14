@@ -26,10 +26,10 @@ func (r *Rows) Close() error {
 }
 
 func (r *Rows) Next(dest []driver.Value) error {
-	return r.readDataRow(dest)
+	return ReadDataRow(dest, r)
 }
 
-func (r *Rows) readDataRow(dest []driver.Value) error {
+func ReadDataRow(dest []driver.Value, r *Rows) error {
 	msgType, err := r.reader.ReadByte()
 	if err != nil {
 		return fmt.Errorf("readDataRow: Failed to read msgType")

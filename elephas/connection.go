@@ -25,7 +25,6 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 	var b Buffer
 	_, err := c.netConn.Write(b.buildQuery(query, args))
 	if err != nil {
-		log.Printf("Failed to send Query: %v", err)
 		return nil, err
 	}
 	return nil, nil
@@ -41,13 +40,24 @@ func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.S
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 	var b Buffer
 	name := "test"
-	parseCmd := b.buidParseCmd(query, name)
-	_, err := c.netConn.Write(parseCmd)
+	cmd := b.buidParseCmd(query, name)
+	_, err := c.netConn.Write(cmd)
 	if err != nil {
 		return nil, err
 	}
+	portalName := "portalvu"
+	cmd = b.buildBindCmd(name, portalName)
+	_, err = c.netConn.Write(cmd)
+	if err != nil {
+		return nil, err
+	}
+	// cmd = b.buildFlushCmd()
+	// _, err = c.netConn.Write(cmd)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	return &Stmt{netConn: c.netConn, namedStmt: name}, nil
+	return &Stmt{netConn: c.netConn, portalName: portalName}, nil
 }
 
 func (c *Connection) Close() error {
@@ -161,38 +171,31 @@ func (c *Connection) authSASL(b *Buffer) error {
 	client := sasl.NewClient(sasl.ScramSha256, creds)
 	_, resp, err := client.Step(nil) // n,,n=postgres,r= nonce
 	if err != nil {
-		log.Printf("Failed to Step: %v \n", err)
 		return err
 	}
 	_, err = c.netConn.Write(b.buildSASLInitialResponse(resp))
 	if err != nil {
-		log.Printf("Failed to send SASLInitialResponse: %v", err)
 		return err
 	}
 	data, err := c.reader.handleAuthResp(SASLContinue)
 	if err != nil {
-		log.Println("Failed to handle AuthenticationSASLContinue")
 		return err
 	}
 	_, resp, err = client.Step(data)
 	if err != nil {
-		log.Printf("Failed to step: %v \n", err)
 		return err
 	}
 
 	_, err = c.netConn.Write(b.buildSASLResponse(resp))
 	if err != nil {
-		log.Printf("Failed to send SASLResponse (Step4): %v \n", err)
 		return err
 	}
 
 	data, err = c.reader.handleAuthResp(SASLComplete)
 	if err != nil {
-		log.Printf("Failed to handle AuthenticationSASLFinal (complete): %v", err)
 		return err
 	}
 	if _, _, err = client.Step(data); err != nil {
-		log.Printf("client.Step 3 failed: %v", err)
 		return err
 	}
 	if client.State() != sasl.ValidServerResponse {
@@ -200,7 +203,6 @@ func (c *Connection) authSASL(b *Buffer) error {
 	}
 	_, err = c.reader.handleAuthResp(AuthSuccess)
 	if err != nil {
-		log.Printf("Failed to handle AuthenticationSASLFinal (success): %v", err)
 		return err
 	}
 	return nil
@@ -235,7 +237,8 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 		log.Printf("Failed to send Query: %v", err)
 		return nil, err
 	}
-	rows, err := c.reader.readRowDescription(c.netConn)
+	rows, err := ReadRowDescription(c.reader)
+	rows.conn = c.netConn
 	if err != nil {
 		return nil, err
 	}

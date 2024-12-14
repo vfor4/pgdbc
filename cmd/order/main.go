@@ -39,7 +39,7 @@ func toPrepare(db *sql.DB, ctx context.Context) error {
 		fmt.Println(err)
 		return err
 	}
-	stmt, err := db.PrepareContext(ctx, "select * from orders")
+	stmt, err := db.PrepareContext(ctx, "select * from orders where id = $1")
 	if err != nil {
 		return printErr(err)
 	}

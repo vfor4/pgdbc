@@ -14,6 +14,9 @@ const (
 	parseCommand     = 'P'
 	bindCommand      = 'B'
 	executeCommand   = 'E'
+	flushCommand     = 'H'
+	syncCommand      = 'S'
+	describeCommand  = 'D'
 
 	SASL         = 10
 	SASLContinue = 11

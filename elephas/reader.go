@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"strconv"
 	"strings"
 )
@@ -114,7 +113,7 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	return d, nil
 }
 
-func (r Reader) readRowDescription(conn net.Conn) (Rows, error) {
+func ReadRowDescription(r *Reader) (Rows, error) {
 	msgType, err := r.ReadByte()
 	if err != nil {
 		return Rows{}, err
@@ -122,7 +121,7 @@ func (r Reader) readRowDescription(conn net.Conn) (Rows, error) {
 	if msgType != rowDescription {
 		return Rows{}, fmt.Errorf("Expect Row Description type but got %v", msgType)
 	}
-	msgLen, err := r.ReadBytesToUint32(4)
+	_, err = r.ReadBytesToUint32(4)
 	if err != nil {
 		return Rows{}, errors.New("readRowDescription: Failed to read msgLen")
 	}
@@ -130,7 +129,6 @@ func (r Reader) readRowDescription(conn net.Conn) (Rows, error) {
 	if err != nil {
 		return Rows{}, errors.New("readRowDescription: Failed to read fieldCount")
 	}
-	log.Println(msgLen, fieldCount)
 	var rows Rows
 	for i := 0; i < int(fieldCount); i++ {
 		fieldName, err := r.ReadString(0)
@@ -146,7 +144,6 @@ func (r Reader) readRowDescription(conn net.Conn) (Rows, error) {
 		rows.oids = append(rows.oids, int(oid))
 		r.Discard(2 + 4 + 2)
 	}
-	rows.reader = &r
-	rows.conn = conn
+	rows.reader = r
 	return rows, nil
 }
