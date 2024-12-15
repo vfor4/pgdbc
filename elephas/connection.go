@@ -61,7 +61,7 @@ func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 }
 
 func (c *Connection) Close() error {
-	panic("todo close connection")
+	return c.netConn.Close()
 }
 
 // deprecated function, use BeginTx instead
@@ -111,7 +111,7 @@ func (c *Connection) makeHandShake() error {
 		if err != nil {
 			return err
 		}
-		msgLen, err := c.reader.ReadBytesToUint32(4)
+		msgLen, err := c.reader.ReadBytesToUint32()
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ func (c *Connection) makeHandShake() error {
 }
 
 func (c *Connection) doAuthentication(b Buffer) error {
-	authType, err := c.reader.ReadBytesToUint32(4)
+	authType, err := c.reader.ReadBytesToUint32()
 	if err != nil {
 		return err
 	}
@@ -231,14 +231,12 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 
 func (c *Connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	var b Buffer
-	log.Println("query context")
 	_, err := c.netConn.Write(b.buildQuery(query, args))
 	if err != nil {
 		log.Printf("Failed to send Query: %v", err)
 		return nil, err
 	}
 	rows, err := ReadRowDescription(c.reader)
-	rows.conn = c.netConn
 	if err != nil {
 		return nil, err
 	}

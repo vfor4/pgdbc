@@ -40,7 +40,7 @@ func ReadDataRow(dest []driver.Value, r *Rows) error {
 	if msgType != dataRow {
 		return fmt.Errorf("Expected msgType DataRow('D') but got msgType %v", msgType)
 	}
-	_, err = r.reader.ReadBytesToUint32(4)
+	_, err = r.reader.ReadBytesToUint32()
 	if err != nil {
 		return errors.New("readDataRow: Failed to read msgLen")
 	}
@@ -49,7 +49,7 @@ func ReadDataRow(dest []driver.Value, r *Rows) error {
 		return errors.New("readDataRow: Failed to read fieldCount")
 	}
 	for i := 0; i < int(fieldCount); i++ {
-		colLen, err := r.reader.ReadBytesToUint32(4)
+		colLen, err := r.reader.ReadBytesToUint32()
 		if err != nil {
 			return errors.New("readDataRow: Failed to read colLen")
 		}

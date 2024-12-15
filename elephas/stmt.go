@@ -34,11 +34,11 @@ func (st Stmt) Query(args []driver.Value) (driver.Rows, error) {
 
 func (st Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
 	var b Buffer
-	_, err := st.netConn.Write(b.buildFlushCmd())
-	if err != nil {
-		return nil, err
-	}
-	_, err = st.netConn.Write(b.buildDescribe(st.portalName))
+	// _, err := st.netConn.Write(b.buildFlushCmd())
+	// if err != nil {
+	// 	return nil, err
+	// }
+	_, err := st.netConn.Write(b.buildDescribe(st.portalName))
 	if err != nil {
 		return nil, err
 	}

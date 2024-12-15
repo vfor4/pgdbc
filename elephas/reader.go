@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 	"strings"
 )
@@ -22,8 +21,8 @@ func NewReader(r *bufio.Reader) *Reader {
 	return &Reader{r}
 }
 
-func (r Reader) ReadBytesToUint32(size uint) (uint32, error) {
-	b := make([]byte, size)
+func (r Reader) ReadBytesToUint32() (uint32, error) {
+	b := make([]byte, 4)
 	_, err := io.ReadFull(r, b)
 	return binary.BigEndian.Uint32(b), err
 }
@@ -40,7 +39,7 @@ func (r Reader) ReadCommandComplete() (string, error) {
 	} else if t != commandComlete {
 		return "", fmt.Errorf("expect msg type is commandComplete but got (%v)", t)
 	}
-	_, err := r.ReadBytesToUint32(4)
+	_, err := r.ReadBytesToUint32()
 	if err != nil {
 		return "", err
 	}
@@ -54,7 +53,7 @@ func (r Reader) ReadReadyForQuery() (TransactionStatus, error) {
 	} else if t != readyForQuery {
 		return E, fmt.Errorf("expect msg type is commandComplete but got (%v)", t)
 	}
-	_, err := r.ReadBytesToUint32(4)
+	_, err := r.ReadBytesToUint32()
 	if err != nil {
 		return E, err
 	}
@@ -62,10 +61,10 @@ func (r Reader) ReadReadyForQuery() (TransactionStatus, error) {
 	if err != nil {
 		return E, err
 	}
-	log.Printf("txStatus (%v)", txStatus)
 	return TransactionStatus(txStatus), nil
 }
 
+// pg_type
 func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
 	b := make([]byte, size)
 	_, err := io.ReadFull(r, b)
@@ -79,7 +78,7 @@ func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
 			return nil, nil
 		}
 		return v, nil
-	case 25:
+	case 25, 1043:
 		return string(b), nil
 	case 16:
 		return strconv.ParseBool(string(b))
@@ -94,12 +93,12 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	} else if t != authMsgType {
 		return nil, fmt.Errorf("expect message type is authentication (%v) but got: %v", authMsgType, t)
 	}
-	l, err := r.ReadBytesToUint32(4)
+	l, err := r.ReadBytesToUint32()
 	l -= 8 //
 	if err != nil {
 		return nil, err
 	}
-	respAuthType, err := r.ReadBytesToUint32(4)
+	respAuthType, err := r.ReadBytesToUint32()
 	if respAuthType != authType {
 		return nil, fmt.Errorf("expect authentication type (%v) but got: %v", authType, respAuthType)
 	}
@@ -121,7 +120,7 @@ func ReadRowDescription(r *Reader) (Rows, error) {
 	if msgType != rowDescription {
 		return Rows{}, fmt.Errorf("Expect Row Description type but got %v", msgType)
 	}
-	_, err = r.ReadBytesToUint32(4)
+	_, err = r.ReadBytesToUint32()
 	if err != nil {
 		return Rows{}, errors.New("readRowDescription: Failed to read msgLen")
 	}
@@ -137,7 +136,7 @@ func ReadRowDescription(r *Reader) (Rows, error) {
 		}
 		rows.cols = append(rows.cols, fieldName)
 		r.Discard(4 + 2)
-		oid, err := r.ReadBytesToUint32(4)
+		oid, err := r.ReadBytesToUint32()
 		if err != nil {
 			return Rows{}, errors.New("readRowDescription: Failed to read oid")
 		}
