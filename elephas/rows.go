@@ -21,7 +21,13 @@ func (r *Rows) Columns() []string {
 }
 
 func (r *Rows) Close() error {
-	// panic causes infinite loop
+	r.reader.Discard(13)
+	if t, err := r.reader.ReadByte(); err != nil {
+		return errors.New("Rows.Close not able to read readyforquery command")
+	} else if t != readyForQuery {
+		return fmt.Errorf("Rows.Close expect readyforquery but got %v ", t)
+	}
+	r.reader.Discard(5)
 	return nil
 }
 
@@ -55,7 +61,7 @@ func ReadDataRow(dest []driver.Value, r *Rows) error {
 		}
 		data, err := r.reader.ReadBytesToAny(colLen, r.oids[i])
 		if err != nil {
-			return errors.New("readDataRow: Failed to read data")
+			return fmt.Errorf("ReadBytesToAny error: %v", err)
 		}
 		dest[i] = data
 	}

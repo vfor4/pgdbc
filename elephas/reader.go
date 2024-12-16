@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Reader struct {
@@ -51,7 +52,7 @@ func (r Reader) ReadReadyForQuery() (TransactionStatus, error) {
 	if t, err := r.ReadByte(); err != nil {
 		return E, errors.New("unable to read msg type")
 	} else if t != readyForQuery {
-		return E, fmt.Errorf("expect msg type is commandComplete but got (%v)", t)
+		return E, fmt.Errorf("expect msg type is readForQuery but got (%v)", t)
 	}
 	_, err := r.ReadBytesToUint32()
 	if err != nil {
@@ -82,6 +83,8 @@ func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
 		return string(b), nil
 	case 16:
 		return strconv.ParseBool(string(b))
+	case 1114:
+		return time.Parse("2006-01-02 15:04:05.000000", string(b))
 	default:
 		panic(fmt.Sprintf("the OID type %v is not implemented", dataType))
 	}
