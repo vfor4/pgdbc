@@ -7,10 +7,10 @@ package elephas
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"strings"
 	"testing"
+	"time"
 )
 
 var (
@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 	if err := db.Close(); err != nil {
 		log.Fatalf("Failed to close database: %v", err)
 	}
-	log.Fatal(ec)
+	log.Printf("excode: %v ", ec)
 }
 
 func TestQueryContext(t *testing.T) {
@@ -64,39 +64,39 @@ func TestQueryContext(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("%s are %d years old", strings.Join(names, ", "), 30)
+	t.Logf("%s are %d years old", strings.Join(names, ", "), 30)
 }
 
-// func TestQueryRowContext(t *testing.T) {
-// 	id := 1
-// 	var username string
-// 	var created time.Time
-// 	err := db.QueryRowContext(ctx, "SELECT name, created_at FROM test_users WHERE id=?", id).Scan(&username, &created)
-// 	switch {
-// 	case err == sql.ErrNoRows:
-// 		t.Fatalf("no user with id %d\n", id)
-// 	case err != nil:
-// 		t.Fatalf("query error: %v\n", err)
-// 	default:
-// 		t.Logf("username is %q, account created on %s\n", username, created)
-// 	}
-// }
+func TestQueryRowContext(t *testing.T) {
+	id := 1
+	var username string
+	var created time.Time
+	err := db.QueryRowContext(ctx, "SELECT name, created_at FROM test_users WHERE id=?", id).Scan(&username, &created)
+	switch {
+	case err == sql.ErrNoRows:
+		t.Fatalf("no user with id %d\n", id)
+	case err != nil:
+		t.Fatalf("query error: %v\n", err)
+	default:
+		t.Logf("username is %q, account created on %s\n", username, created)
+	}
+}
 
-//
-// func ExampleDB_ExecContext() {
-// 	id := 47
-// 	result, err := db.ExecContext(ctx, "UPDATE balances SET balance = balance + 10 WHERE user_id = ?", id)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	rows, err := result.RowsAffected()
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	if rows != 1 {
-// 		log.Fatalf("expected to affect 1 row, affected %d", rows)
-// 	}
-// }
+func TestExecContext(t *testing.T) {
+	id := 1
+	result, err := db.ExecContext(ctx, "UPDATE test_users SET salary = salary + 3000000 WHERE id = ?", id)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if rows != 1 {
+		log.Fatalf("expected to affect 1 row, affected %d", rows)
+	}
+}
+
 //
 // func ExampleDB_Query_multipleResultSets() {
 // 	age := 27

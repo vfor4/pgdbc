@@ -21,13 +21,7 @@ func (r *Rows) Columns() []string {
 }
 
 func (r *Rows) Close() error {
-	r.reader.Discard(13)
-	if t, err := r.reader.ReadByte(); err != nil {
-		return errors.New("Rows.Close not able to read readyforquery command")
-	} else if t != readyForQuery {
-		return fmt.Errorf("Rows.Close expect readyforquery but got %v ", t)
-	}
-	r.reader.Discard(5)
+	r.reader.Discard(r.reader.Buffered())
 	return nil
 }
 

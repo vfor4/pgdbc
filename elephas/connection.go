@@ -27,7 +27,7 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return Result{reader: c.reader}, nil
 }
 
 // PrepareContext returns a prepared statement, bound to this connection.
@@ -105,7 +105,6 @@ func (c *Connection) makeHandShake() error {
 		log.Fatalf("Failed to make hande shake: %v", err)
 		return err
 	}
-	log.Println("Sent StartupMessage")
 	for {
 		msgType, err := c.reader.ReadByte()
 		if err != nil {
@@ -149,7 +148,6 @@ func (c *Connection) doAuthentication(b Buffer) error {
 		}
 		switch string(string(data[:len(data)-1])) {
 		case sasl.ScramSha256.Name:
-			log.Println("Start SASL authentication")
 			err = c.authSASL(&b)
 			if err != nil {
 				return err

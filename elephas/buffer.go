@@ -5,7 +5,6 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"strings"
 
 	"mellium.im/sasl"
@@ -66,7 +65,6 @@ func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 	for _, arg := range args {
 		finalQuery = strings.Replace(finalQuery, "?", aToString(arg.Value), 1)
 	}
-	log.Println(finalQuery)
 	b.WriteByte(queryCommand)
 	initLen := []byte{0, 0, 0, 0}
 	binary.BigEndian.PutUint32(initLen, uint32(len(finalQuery)+5)) //4: the length itself; 1:the c-string ending
