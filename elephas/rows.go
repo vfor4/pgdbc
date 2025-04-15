@@ -44,11 +44,11 @@ func ReadDataRow(dest []driver.Value, r *Rows) error {
 	if err != nil {
 		return errors.New("readDataRow: Failed to read msgLen")
 	}
-	fieldCount, err := r.reader.ReadBytesToUint16(2)
+	fieldCount, err := r.reader.ReadBytesToUint16()
 	if err != nil {
 		return errors.New("readDataRow: Failed to read fieldCount")
 	}
-	for i := 0; i < int(fieldCount); i++ {
+	for i := range int(fieldCount) {
 		colLen, err := r.reader.ReadBytesToUint32()
 		if err != nil {
 			return errors.New("readDataRow: Failed to read colLen")

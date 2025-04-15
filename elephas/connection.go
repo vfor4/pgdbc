@@ -90,7 +90,7 @@ func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 	}
 	txStatus, err := c.reader.ReadReadyForQuery()
 	if err != nil {
-		return nil, fmt.Errorf("Expecte to ReadAndExpect(%v)", txStatus)
+		return nil, fmt.Errorf("Expect ReadAndExpect(%v)", txStatus)
 	}
 	if txStatus == T {
 		log.Println("in tx")
@@ -101,7 +101,7 @@ func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
 func (c *Connection) makeHandShake() error {
 	var b Buffer
-	if _, err := c.netConn.Write(b.buildStartUpMsg()); err != nil {
+	if _, err := c.netConn.Write(b.buildStartUpMsg(c.cfg.User, c.cfg.Database)); err != nil {
 		log.Fatalf("Failed to make hande shake: %v", err)
 		return err
 	}
@@ -128,6 +128,35 @@ func (c *Connection) makeHandShake() error {
 		case readyForQuery:
 			c.reader.Discard(int(msgLen - 4))
 			return nil
+		case errorResponseMsg:
+			// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ERRORRESPONSE
+			var severity string
+			for {
+				field, err := c.reader.ReadByte()
+				if err != nil {
+					return err
+				}
+				switch field {
+				case 'S':
+					s, err := c.reader.ReadBytes(0)
+					s = s[:len(s)-1]
+					if err != nil {
+						return err
+					}
+					severity = string(s)
+				case 'M':
+					errMsg, err := c.reader.ReadBytes(0)
+					if err != nil {
+						return err
+					}
+					if severity == "FATAL" {
+						log.Fatal(string(errMsg))
+					}
+				default:
+					// TODO
+					c.reader.ReadBytes(0)
+				}
+			}
 		default:
 			log.Println(string(msgType))
 		}
@@ -146,7 +175,7 @@ func (c *Connection) doAuthentication(b Buffer) error {
 			log.Fatalf("Failed to handle AuthenticationSASL; %v", err)
 			return err
 		}
-		switch string(string(data[:len(data)-1])) {
+		switch string(data[:len(data)-1]) {
 		case sasl.ScramSha256.Name:
 			err = c.authSASL(&b)
 			if err != nil {
@@ -217,8 +246,8 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 		log.Fatalf("Failed to dial: %v", err)
 		return nil, err
 	}
-	reader := NewReader(bufio.NewReader(dConn))
-	conn := Connection{netConn: dConn, reader: reader, cfg: cfg}
+
+	conn := Connection{netConn: dConn, reader: NewReader(bufio.NewReader(dConn)), cfg: cfg}
 	if err := conn.makeHandShake(); err != nil {
 		log.Fatalf("Failed to make handle shake: %v", err)
 		return nil, err
@@ -234,7 +263,7 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 		log.Printf("Failed to send Query: %v", err)
 		return nil, err
 	}
-	rows, err := ReadRowDescription(c.reader)
+	rows, err := ReadSimpleQueryRes(c.reader)
 	if err != nil {
 		return nil, err
 	}

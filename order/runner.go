@@ -9,7 +9,7 @@ import (
 
 func Start(ctx context.Context, host, port string) (context.Context, error) {
 	RegisterHandlers()
-	ctx = startService(ctx, host, port) //refactor the error
+	ctx = startService(ctx, host, port)
 	return ctx, nil
 }
 
@@ -19,11 +19,11 @@ func startService(ctx context.Context, host, port string) context.Context {
 	srv.Addr = fmt.Sprintf("%s:%s", host, port)
 	go func() {
 		fmt.Print(srv.ListenAndServe())
-		cancel()
+		<-ctx.Done()
 	}()
 
 	go func() {
-		fmt.Println("service started, press any keys to shutdown")
+		fmt.Printf("Listening on %v, press any keys to shutdown\n", srv.Addr)
 		var s string
 		fmt.Scanln(&s)
 		err := srv.Shutdown(ctx)
@@ -31,7 +31,6 @@ func startService(ctx context.Context, host, port string) context.Context {
 			log.Print(err)
 		}
 		cancel()
-
 	}()
 	return ctx
 }

@@ -1,6 +1,8 @@
 package elephas
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Tx struct {
 	conn *Connection

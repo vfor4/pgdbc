@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"strings"
 
 	"mellium.im/sasl"
@@ -14,16 +15,16 @@ type Buffer struct {
 	bytes.Buffer
 }
 
-func (b *Buffer) buildStartUpMsg() []byte {
+func (b *Buffer) buildStartUpMsg(user, db string) []byte {
 	b.Write([]byte{0, 0, 0, 0}) // placeholder for length of message contents
 	b.Write((binary.BigEndian.AppendUint32([]byte{}, 196608)))
 	b.WriteString("user")
 	b.WriteByte(0)
-	b.WriteString("postgres")
+	b.WriteString(user)
 	b.WriteByte(0)
 	b.WriteString("database")
 	b.WriteByte(0)
-	b.WriteString("record")
+	b.WriteString(db)
 	b.WriteByte(0)
 	b.WriteByte(0) // null-terminated c-style string
 	data := b.Bytes()
@@ -61,15 +62,15 @@ func (b *Buffer) buildSASLResponse(saslChallenge []byte) []byte {
 }
 
 func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
-	finalQuery := query
+	log.Println(query)
 	for _, arg := range args {
-		finalQuery = strings.Replace(finalQuery, "?", aToString(arg.Value), 1)
+		query = strings.Replace(query, "?", aToString(arg.Value), 1)
 	}
 	b.WriteByte(queryCommand)
 	initLen := []byte{0, 0, 0, 0}
-	binary.BigEndian.PutUint32(initLen, uint32(len(finalQuery)+5)) //4: the length itself; 1:the c-string ending
+	binary.BigEndian.PutUint32(initLen, uint32(len(query)+5)) //4: the length itself; 1:the c-string ending
 	b.Write(initLen)
-	b.WriteString(finalQuery)
+	b.WriteString(query)
 	b.WriteByte(0)
 	data := b.Bytes()
 	b.Reset()

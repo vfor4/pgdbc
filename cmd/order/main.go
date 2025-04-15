@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"log"
 	_ "order/elephas"
-	"time"
+	"order/order"
 )
+
+func init() {
+	log.SetFlags(log.Lshortfile)
+}
 
 type Order struct {
 	ID   int
@@ -15,23 +19,11 @@ type Order struct {
 }
 
 func main() {
-	var dsn = "postgres://postgres:postgres@localhost:5432/record"
-
-	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
-	defer cancel()
-
-	db, err := sql.Open("elephas", dsn)
+	ctx, err := order.Start(context.Background(), "localhost", "8081")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
-	if err := db.PingContext(ctx); err != nil {
-		fmt.Print("opps")
-		return
-	}
-	err = toPrepare(db, ctx)
-	if err != nil {
-		log.Printf("failed toWrite, %v", err)
-	}
+	<-ctx.Done()
 }
 
 func toPrepare(db *sql.DB, ctx context.Context) error {
