@@ -86,10 +86,12 @@ func (r Reader) ReadBytesToAny(size uint32, dataType int) (any, error) {
 	case 1114:
 		return time.Parse("2006-01-02 15:04:05.000000", string(b))
 	case 20:
-		bigBuf := make([]byte, 8)
-		bigBuf = append(bigBuf, b...)
-		// bigint
-		return int64(binary.BigEndian.Uint64(bigBuf)), nil
+		bigInt, err := strconv.ParseInt(string(b), 10, 32)
+		if err != nil {
+			panic(err)
+		}
+		return bigInt, nil
+
 	default:
 		//select oid, typname from pg_type where oid = ?;
 		panic(fmt.Sprintf("the OID type %v is not implemented", dataType))

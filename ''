@@ -3,7 +3,6 @@ package order
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 
 func RegisterHandlers() {
 	http.Handle("GET /order/{id}", http.HandlerFunc(getOrderHandler))
-	http.Handle("POST /order", http.HandlerFunc(postOrderHandler))
 }
 
 func getOrderHandler(w http.ResponseWriter, r *http.Request) {
@@ -22,35 +20,22 @@ func getOrderHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(order.String()))
 }
 
-func postOrderHandler(w http.ResponseWriter, r *http.Request) {
-	var o order
-	err := json.NewDecoder(r.Body).Decode(&o)
-	defer r.Body.Close()
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	addOrder(o)
-}
-
 type order struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
+	id   int
+	name string
 }
 
 func (o order) String() string {
-	return fmt.Sprintf("id: %v; name: %v", o.Id, o.Name)
+	return fmt.Sprintf("id: %v; name: %v", o.id, o.name)
 }
 
 var db *sql.DB
 
 func init() {
 	var dsn = "postgres://postgres:postgres@localhost:5432/myorder"
-	var err error
-	db, err = sql.Open("elephas", dsn)
+	db, err := sql.Open("elephas", dsn)
 	if err != nil {
-		panic(err)
+		return order{}
 	}
 }
 
@@ -59,7 +44,7 @@ func getOrder(id string) order {
 	defer cancle()
 	var o order
 	db.Ping()
-	err := db.QueryRowContext(ctx, "select id, name from order_table where id = ?", id).Scan(&o.Id, &o.Name)
+	err := db.QueryRowContext(ctx, "select id, name from order_table where id = ?", id).Scan(&o.id, &o.name)
 	if err != nil {
 		log.Println(err)
 		return order{}
@@ -67,12 +52,19 @@ func getOrder(id string) order {
 	return o
 }
 
-func addOrder(o order) (int64, error) {
+func addOrder(o order) order {
 	ctx, cancle := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancle()
-	rs, err := db.ExecContext(ctx, "insert into order values (?, ?)", o.Id, o.Name)
+	db, err := sql.Open("elephas", dsn)
+	var dsn = "postgres://postgres:postgres@localhost:5432/myorder"
 	if err != nil {
-		return 0, err
+		return order{}
 	}
-	return rs.LastInsertId()
+	db.Ping()
+	rs, err = db.ExecContext(ctx, "insert into order values (?, ?)", o.id, o.name)
+	if err != nil {
+		return order{}
+	}
+	return o
+
 }
