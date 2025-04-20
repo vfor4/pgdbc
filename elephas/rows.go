@@ -2,18 +2,17 @@ package elephas
 
 import (
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 )
 
 type Rows struct {
-	cols   []string
-	oids   []int
-	datas  []any
-	reader *Reader
-	conn   net.Conn
+	cols       []string
+	oids       []uint32
+	colFormats []uint16
+	reader     *Reader
+	conn       net.Conn
 }
 
 func (r *Rows) Columns() []string {
@@ -21,10 +20,15 @@ func (r *Rows) Columns() []string {
 }
 
 func (r *Rows) Close() error {
-	r.reader.Discard(r.reader.Buffered())
 	return nil
 }
 
+// int64
+// float64
+// bool
+// []byte
+// string
+// time.Time
 func (r *Rows) Next(dest []driver.Value) error {
 	return ReadDataRow(dest, r)
 }
@@ -32,30 +36,30 @@ func (r *Rows) Next(dest []driver.Value) error {
 func ReadDataRow(dest []driver.Value, r *Rows) error {
 	msgType, err := r.reader.ReadByte()
 	if err != nil {
-		return fmt.Errorf("readDataRow: Failed to read msgType")
+		panic(err)
 	}
 	if msgType == commandComlete {
 		return io.EOF
 	}
 	if msgType != dataRow {
-		return fmt.Errorf("Expected msgType DataRow('D') but got msgType %v", msgType)
+		panic(fmt.Errorf("expected data row - D(69) type but got %v", msgType))
 	}
-	_, err = r.reader.ReadBytesToUint32()
+	_, err = r.reader.Read4Bytes() // skip msgLen
 	if err != nil {
-		return errors.New("readDataRow: Failed to read msgLen")
+		panic(err)
 	}
-	fieldCount, err := r.reader.ReadBytesToUint16()
+	fieldCount, err := r.reader.Read2Bytes()
 	if err != nil {
-		return errors.New("readDataRow: Failed to read fieldCount")
+		panic(err)
 	}
-	for i := range int(fieldCount) {
-		colLen, err := r.reader.ReadBytesToUint32()
+	for i := range fieldCount {
+		colLen, err := r.reader.Read4Bytes()
 		if err != nil {
-			return errors.New("readDataRow: Failed to read colLen")
+			panic(err)
 		}
-		data, err := r.reader.ReadBytesToAny(colLen, r.oids[i])
+		data, err := r.reader.ReadBytesToAny(colLen, r.oids[i], r.colFormats[i])
 		if err != nil {
-			return fmt.Errorf("ReadBytesToAny error: %v", err)
+			panic(err)
 		}
 		dest[i] = data
 	}

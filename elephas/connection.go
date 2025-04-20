@@ -110,7 +110,7 @@ func (c *Connection) makeHandShake() error {
 		if err != nil {
 			return err
 		}
-		msgLen, err := c.reader.ReadBytesToUint32()
+		msgLen, err := c.reader.Read4Bytes()
 		if err != nil {
 			return err
 		}
@@ -130,41 +130,19 @@ func (c *Connection) makeHandShake() error {
 			return nil
 		case errorResponseMsg:
 			// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ERRORRESPONSE
-			var severity string
-			for {
-				field, err := c.reader.ReadByte()
-				if err != nil {
-					return err
-				}
-				switch field {
-				case 'S':
-					s, err := c.reader.ReadBytes(0)
-					s = s[:len(s)-1]
-					if err != nil {
-						return err
-					}
-					severity = string(s)
-				case 'M':
-					errMsg, err := c.reader.ReadBytes(0)
-					if err != nil {
-						return err
-					}
-					if severity == "FATAL" {
-						log.Fatal(string(errMsg))
-					}
-				default:
-					// TODO
-					c.reader.ReadBytes(0)
-				}
+			errResponse, err := ReadErrorResponse(c.reader)
+			if err != nil {
+				panic(err)
 			}
+			panic(fmt.Sprintf("Server response with an error = %+v\n", errResponse.Error()))
 		default:
-			log.Println(string(msgType))
+			panic(fmt.Sprintf("Not expected type %v", msgType))
 		}
 	}
 }
 
 func (c *Connection) doAuthentication(b Buffer) error {
-	authType, err := c.reader.ReadBytesToUint32()
+	authType, err := c.reader.Read4Bytes()
 	if err != nil {
 		return err
 	}
@@ -260,12 +238,11 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 	var b Buffer
 	_, err := c.netConn.Write(b.buildQuery(query, args))
 	if err != nil {
-		log.Printf("Failed to send Query: %v", err)
-		return nil, err
+		panic(err)
 	}
 	rows, err := ReadSimpleQueryRes(c.reader)
 	if err != nil {
-		return nil, err
+		return &Rows{}, err
 	}
-	return (&rows), nil
+	return &rows, nil
 }

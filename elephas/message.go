@@ -41,3 +41,10 @@ const (
 	rollbackCmd CommandTag = "ROLLBACK"
 	commitCmd   CommandTag = "COMMIT"
 )
+
+type Format uint16
+
+const (
+	fmtText Format = iota
+	fmtBinary
+)

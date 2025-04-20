@@ -59,7 +59,7 @@ func getOrder(id string) order {
 	defer cancle()
 	var o order
 	db.Ping()
-	err := db.QueryRowContext(ctx, "select id, name from order_table where id = ?", id).Scan(&o.Id, &o.Name)
+	err := db.QueryRowContext(ctx, "select id, name from order_table_z where id = ?", id).Scan(&o.Id, &o.Name)
 	if err != nil {
 		log.Println(err)
 		return order{}
@@ -70,7 +70,7 @@ func getOrder(id string) order {
 func addOrder(o order) (int64, error) {
 	ctx, cancle := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancle()
-	rs, err := db.ExecContext(ctx, "insert into order values (?, ?)", o.Id, o.Name)
+	rs, err := db.ExecContext(ctx, "insert into order_table values (?, ?) returning id", o.Id, o.Name)
 	if err != nil {
 		return 0, err
 	}
