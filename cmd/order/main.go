@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
 	"log"
 	_ "order/elephas"
-	"order/order"
 )
 
 func init() {
@@ -19,11 +20,25 @@ type Order struct {
 }
 
 func main() {
-	ctx, err := order.Start(context.Background(), "localhost", "8081")
+	// ctx, err := order.Start(context.Background(), "localhost", "8081")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// <-ctx.Done()
+	num := int(1)
+	// Big-endian
+	bufBig := new(bytes.Buffer)
+	err := binary.Write(bufBig, binary.BigEndian, num)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
-	<-ctx.Done()
+
+	fmt.Printf("Big-endian:    % X\n", bufBig.Bytes())
+
+	// Little-endian
+	bufLittle := new(bytes.Buffer)
+	binary.Write(bufLittle, binary.LittleEndian, num)
+	fmt.Printf("Little-endian: % X\n", bufLittle.Bytes())
 }
 
 func toPrepare(db *sql.DB, ctx context.Context) error {

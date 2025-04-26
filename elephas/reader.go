@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func (r Reader) Read2Bytes() (uint16, error) {
 func (r Reader) ReadCommandComplete() (string, error) {
 	if t, err := r.ReadByte(); err != nil {
 		return "", errors.New("unable to read msg type")
-	} else if t != commandComlete {
+	} else if t != commandComplete {
 		return "", fmt.Errorf("expect msg type is commandComplete but got (%v)", t)
 	}
 	_, err := r.Read4Bytes()
@@ -129,7 +130,7 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	return d, nil
 }
 
-func ReadSimpleQueryRes(r *Reader) (Rows, error) {
+func ReadSimpleQueryRes(r *Reader, conn net.Conn) (Rows, error) {
 	msgType, err := r.ReadByte()
 	if err != nil {
 		panic(err)

@@ -1,9 +1,5 @@
 package main
 
-import (
-	"order/logging"
-)
-
 func main() {
 	// http.HandleFunc("/search", handleSearch)
 	// var svr http.Server
@@ -28,5 +24,4 @@ func main() {
 	// 	}
 	// }()
 	// wg.Wait()
-	logging.Logger.Printf("hellow %v", "vu")
 }

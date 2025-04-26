@@ -59,7 +59,7 @@ func getOrder(id string) order {
 	defer cancle()
 	var o order
 	db.Ping()
-	err := db.QueryRowContext(ctx, "select id, name from order_table_z where id = ?", id).Scan(&o.Id, &o.Name)
+	err := db.QueryRowContext(ctx, "select id, name from order_table where id = ?", id).Scan(&o.Id, &o.Name)
 	if err != nil {
 		log.Println(err)
 		return order{}

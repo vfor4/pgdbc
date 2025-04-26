@@ -2,9 +2,10 @@ package elephas
 
 import (
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"io"
-	"net"
+	"log"
 )
 
 type Rows struct {
@@ -12,7 +13,6 @@ type Rows struct {
 	oids       []uint32
 	colFormats []uint16
 	reader     *Reader
-	conn       net.Conn
 }
 
 func (r *Rows) Columns() []string {
@@ -20,7 +20,20 @@ func (r *Rows) Columns() []string {
 }
 
 func (r *Rows) Close() error {
-	return nil
+	for {
+		t, err := r.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		switch t {
+		case commandComplete:
+			_ = ReadCommandComplete(r)
+		case readyForQuery:
+			return ReadReadyForQuery(r)
+		default:
+			panic(errors.New("Close should be here"))
+		}
+	}
 }
 
 // int64
@@ -32,14 +45,33 @@ func (r *Rows) Close() error {
 func (r *Rows) Next(dest []driver.Value) error {
 	return ReadDataRow(dest, r)
 }
+func ReadReadyForQuery(r *Rows) error {
+	_, err := r.reader.Read4Bytes()
+	if err != nil {
+		return err
+	}
+	s, _ := r.reader.ReadByte()
+	if s == 'I' {
+		log.Print("Status is Idle")
+	}
+	return nil
+}
+func ReadCommandComplete(r *Rows) error {
+	l, err := r.reader.Read4Bytes()
+	if err != nil {
+		return err
+	}
+	_, _ = r.reader.Discard(int(l - 4))
+	return io.EOF
+}
 
 func ReadDataRow(dest []driver.Value, r *Rows) error {
 	msgType, err := r.reader.ReadByte()
 	if err != nil {
 		panic(err)
 	}
-	if msgType == commandComlete {
-		return io.EOF
+	if msgType == commandComplete {
+		return ReadCommandComplete(r)
 	}
 	if msgType != dataRow {
 		panic(fmt.Errorf("expected data row - D(69) type but got %v", msgType))

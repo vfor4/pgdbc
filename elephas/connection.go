@@ -27,7 +27,7 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 	if err != nil {
 		return nil, err
 	}
-	return Result{reader: c.reader}, nil
+	return nil, nil
 }
 
 // PrepareContext returns a prepared statement, bound to this connection.
@@ -83,7 +83,7 @@ func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 	}
 	cmdTag, err := c.reader.ReadCommandComplete()
 	if err != nil {
-		return nil, fmt.Errorf("Unable to ReadAndExpect(%v)", commandComlete)
+		return nil, fmt.Errorf("Unable to ReadAndExpect(%v)", commandComplete)
 	}
 	if cmdTag != string(beginCmd) {
 		return nil, fmt.Errorf("Expect BEGIN command tag but got (%v)", cmdTag)
@@ -240,7 +240,7 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 	if err != nil {
 		panic(err)
 	}
-	rows, err := ReadSimpleQueryRes(c.reader)
+	rows, err := ReadSimpleQueryRes(c.reader, c.netConn)
 	if err != nil {
 		return &Rows{}, err
 	}

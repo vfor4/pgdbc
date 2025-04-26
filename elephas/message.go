@@ -9,7 +9,7 @@ const (
 	readyForQuery    = 'Z'
 	rowDescription   = 'T'
 	dataRow          = 'D'
-	commandComlete   = 'C'
+	commandComplete  = 'C'
 	queryCommand     = 'Q'
 	parseCommand     = 'P'
 	bindCommand      = 'B'

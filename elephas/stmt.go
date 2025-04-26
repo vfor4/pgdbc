@@ -47,11 +47,10 @@ func (st Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 		return nil, err
 	}
 	reader := NewReader(bufio.NewReader(st.netConn))
-	rows, err := ReadSimpleQueryRes(reader)
+	_, err = ReadSimpleQueryRes(reader, nil)
 	if err != nil {
 		return nil, err
 	}
-	rows.conn = st.netConn
 
 	return &Rows{}, nil
 }

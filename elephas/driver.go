@@ -13,6 +13,10 @@ type Driver struct {
 	connector *Connector
 }
 
+func init() {
+	sql.Register(name, NewDriver())
+}
+
 func (d *Driver) Open(name string) (driver.Conn, error) {
 	connector, err := d.OpenConnector(name)
 	if err != nil {
@@ -48,6 +52,20 @@ func NewDriver() *Driver {
 	return &Driver{}
 }
 
-func init() {
-	sql.Register(name, NewDriver())
-}
+// func RowsAffected(b []byte) (driver.Result, error) {
+// 	l, err := binary.Write(b, binary.BigEndian, 123)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to read length, %w", err)
+// 	}
+// 	tag := make([]byte, l-4-1) // - length - null terminated
+// 	_, err = re.reader.Read(tag)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("Failed to read tag, %w", err)
+// 	}
+// 	tags := strings.Split(string(tag), " ")
+// 	rows, err := strconv.Atoi(tags[1])
+// 	if err != nil {
+// 		return 0, fmt.Errorf("Atoi failed to convert tag, %w", err)
+// 	}
+// 	return driver.RowsAffected(rows), nil
+// }
