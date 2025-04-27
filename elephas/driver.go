@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"io"
 	"net/url"
+	"strings"
 )
 
 const name = "elephas"
@@ -52,20 +54,15 @@ func NewDriver() *Driver {
 	return &Driver{}
 }
 
-// func RowsAffected(b []byte) (driver.Result, error) {
-// 	l, err := binary.Write(b, binary.BigEndian, 123)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("failed to read length, %w", err)
-// 	}
-// 	tag := make([]byte, l-4-1) // - length - null terminated
-// 	_, err = re.reader.Read(tag)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("Failed to read tag, %w", err)
-// 	}
-// 	tags := strings.Split(string(tag), " ")
-// 	rows, err := strconv.Atoi(tags[1])
-// 	if err != nil {
-// 		return 0, fmt.Errorf("Atoi failed to convert tag, %w", err)
-// 	}
-// 	return driver.RowsAffected(rows), nil
-// }
+func ReadCommandComplete(r *Reader) ([]string, error) {
+	_, err := r.Read4Bytes()
+	if err != nil {
+		return nil, err
+	}
+	tag, err := r.ReadString(0)
+	if err != nil {
+		return nil, err
+	}
+
+	return strings.Split(tag[:len(tag)-1], " "), io.EOF
+}

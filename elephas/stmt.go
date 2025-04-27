@@ -8,8 +8,8 @@ import (
 )
 
 type Stmt struct {
-	netConn    net.Conn
-	portalName string
+	netConn net.Conn
+	name    string
 }
 
 func (st Stmt) Close() error {
@@ -38,7 +38,7 @@ func (st Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 	// if err != nil {
 	// 	return nil, err
 	// }
-	_, err := st.netConn.Write(b.buildDescribe(st.portalName))
+	_, err := st.netConn.Write(b.buildDescribe(st.name))
 	if err != nil {
 		return nil, err
 	}

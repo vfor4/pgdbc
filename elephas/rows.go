@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 )
 
@@ -27,9 +26,9 @@ func (r *Rows) Close() error {
 		}
 		switch t {
 		case commandComplete:
-			_ = ReadCommandComplete(r)
+			_, _ = ReadCommandComplete(r.reader)
 		case readyForQuery:
-			return ReadReadyForQuery(r)
+			return ReadReadyForQuery(r.reader)
 		default:
 			panic(errors.New("Close should be here"))
 		}
@@ -45,24 +44,16 @@ func (r *Rows) Close() error {
 func (r *Rows) Next(dest []driver.Value) error {
 	return ReadDataRow(dest, r)
 }
-func ReadReadyForQuery(r *Rows) error {
-	_, err := r.reader.Read4Bytes()
+func ReadReadyForQuery(r *Reader) error {
+	_, err := r.Read4Bytes()
 	if err != nil {
 		return err
 	}
-	s, _ := r.reader.ReadByte()
+	s, _ := r.ReadByte()
 	if s == 'I' {
 		log.Print("Status is Idle")
 	}
 	return nil
-}
-func ReadCommandComplete(r *Rows) error {
-	l, err := r.reader.Read4Bytes()
-	if err != nil {
-		return err
-	}
-	_, _ = r.reader.Discard(int(l - 4))
-	return io.EOF
 }
 
 func ReadDataRow(dest []driver.Value, r *Rows) error {
@@ -71,10 +62,11 @@ func ReadDataRow(dest []driver.Value, r *Rows) error {
 		panic(err)
 	}
 	if msgType == commandComplete {
-		return ReadCommandComplete(r)
+		_, err = ReadCommandComplete(r.reader)
+		return err
 	}
 	if msgType != dataRow {
-		panic(fmt.Errorf("expected data row - D(69) type but got %v", msgType))
+		panic(fmt.Errorf("expected data row - D(68) type but got %v", msgType))
 	}
 	_, err = r.reader.Read4Bytes() // skip msgLen
 	if err != nil {

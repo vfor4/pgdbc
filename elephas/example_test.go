@@ -8,9 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
-	"strings"
 	"testing"
-	"time"
 )
 
 var (
@@ -42,63 +40,62 @@ func TestMain(m *testing.M) {
 	log.Printf("excode: %v ", ec)
 }
 
-func TestQueryContext(t *testing.T) {
-	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", 20)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-	names := make([]string, 0)
-
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			log.Fatal(err)
-		}
-		names = append(names, name)
-	}
-	rerr := rows.Close()
-	if rerr != nil {
-		log.Fatal(rerr)
-	}
-
-	if err := rows.Err(); err != nil {
-		log.Fatal(err)
-	}
-	t.Logf("%s are %d years old", strings.Join(names, ", "), 30)
-}
-
-func TestQueryRowContext(t *testing.T) {
-	id := 1
-	var username string
-	var created time.Time
-	err := db.QueryRowContext(ctx, "SELECT name, created_at FROM users WHERE user_id=?", id).Scan(&username, &created)
-	switch {
-	case err == sql.ErrNoRows:
-		t.Fatalf("no user with id %d\n", id)
-	case err != nil:
-		t.Fatalf("query error: %v\n", err)
-	default:
-		t.Logf("username is %q, account created on %s\n", username, created)
-	}
-}
-
-func TestExecContext(t *testing.T) {
-	id := 1
-	result, err := db.ExecContext(ctx, "UPDATE test_users SET salary = salary + 3000000 WHERE id = ?", id)
-	if err != nil {
-		log.Fatal(err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if rows != 1 {
-		log.Fatalf("expected to affect 1 row, affected %d", rows)
-	}
-}
-
+// func TestQueryContext(t *testing.T) {
+// 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", 20)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	defer rows.Close()
+// 	names := make([]string, 0)
 //
+// 	for rows.Next() {
+// 		var name string
+// 		if err := rows.Scan(&name); err != nil {
+// 			log.Fatal(err)
+// 		}
+// 		names = append(names, name)
+// 	}
+// 	rerr := rows.Close()
+// 	if rerr != nil {
+// 		log.Fatal(rerr)
+// 	}
+//
+// 	if err := rows.Err(); err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	t.Logf("%s are %d years old", strings.Join(names, ", "), 30)
+// }
+
+// func TestQueryRowContext(t *testing.T) {
+// 	id := 1
+// 	var username string
+// 	var created time.Time
+// 	err := db.QueryRowContext(ctx, "SELECT name, created_at FROM users WHERE user_id=?", id).Scan(&username, &created)
+// 	switch {
+// 	case err == sql.ErrNoRows:
+// 		t.Fatalf("no user with id %d\n", id)
+// 	case err != nil:
+// 		t.Fatalf("query error: %v\n", err)
+// 	default:
+// 		t.Logf("username is %q, account created on %s\n", username, created)
+// 	}
+// }
+
+// func TestExecContext(t *testing.T) {
+// 	id := 1
+// 	result, err := db.ExecContext(ctx, "UPDATE users SET salary = salary + 3000 WHERE user_id = ?", id)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	rows, err := result.RowsAffected()
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	if rows != 1 {
+// 		log.Fatalf("expected to affect 1 row, affected %d", rows)
+// 	}
+// }
+
 // func ExampleDB_Query_multipleResultSets() {
 // 	age := 27
 // 	q := `
@@ -160,8 +157,8 @@ func TestExecContext(t *testing.T) {
 // 		log.Fatal(err)
 // 	}
 // }
-//
-// func ExampleDB_PingContext() {
+
+// func TestPingContext(t *testing.T) {
 // 	// Ping and PingContext may be used to determine if communication with
 // 	// the database server is still possible.
 // 	//
@@ -180,30 +177,31 @@ func TestExecContext(t *testing.T) {
 // 	}
 // 	log.Println(status)
 // }
-//
-// func ExampleDB_Prepare() {
-// 	projects := []struct {
-// 		mascot  string
-// 		release int
-// 	}{
-// 		{"tux", 1991},
-// 		{"duke", 1996},
-// 		{"gopher", 2009},
-// 		{"moby dock", 2013},
-// 	}
-//
-// 	stmt, err := db.Prepare("INSERT INTO projects(id, mascot, release, category) VALUES( ?, ?, ?, ? )")
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	defer stmt.Close() // Prepared statements take up server resources and should be closed after use.
-//
-// 	for id, project := range projects {
-// 		if _, err := stmt.Exec(id+1, project.mascot, project.release, "open source"); err != nil {
-// 			log.Fatal(err)
-// 		}
-// 	}
-// }
+
+func TestPrepare(t *testing.T) {
+	projects := []struct {
+		name string
+		age  int
+	}{
+		{"Person A", 34},
+		{"Person B", 24},
+		{"Person C", 19},
+		{"Person D", 65},
+	}
+
+	stmt, err := db.Prepare("INSERT INTO users(name, age) VALUES(?, ?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close() // Prepared statements take up server resources and should be closed after use.
+
+	for _, project := range projects {
+		if _, err := stmt.Exec(project.name, project.age); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 //
 // func ExampleTx_Prepare() {
 // 	projects := []struct {

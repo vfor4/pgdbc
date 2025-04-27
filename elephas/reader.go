@@ -188,3 +188,15 @@ func ReadSimpleQueryRes(r *Reader, conn net.Conn) (Rows, error) {
 		}
 	}
 }
+
+func ReadStepStmtComplete(r *Reader, c byte) error {
+	t, err := r.ReadByte()
+	if err != nil {
+		return err
+	}
+
+	if t != c {
+		return fmt.Errorf("Expected Complete with %v but got %v", c, t)
+	}
+	return nil
+}

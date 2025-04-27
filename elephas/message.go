@@ -1,6 +1,9 @@
 package elephas
 
 // https://www.postgresql.org/docs/current/protocol-message-formats.html
+
+// type MessageId byte
+
 const (
 	errorResponseMsg = 'E'
 	parameterStatus  = 'S'

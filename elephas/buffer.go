@@ -66,7 +66,7 @@ func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 	for _, arg := range args {
 		query = strings.Replace(query, "?", aToString(arg.Value), 1)
 	}
-	b.WriteByte(queryCommand)
+	b.WriteByte(byte(queryCommand))
 	initLen := []byte{0, 0, 0, 0}
 	binary.BigEndian.PutUint32(initLen, uint32(len(query)+5)) //4: the length itself; 1:the c-string ending
 	b.Write(initLen)
@@ -78,19 +78,20 @@ func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 }
 
 // TODO have to refactor
-func (b *Buffer) buidParseCmd(query string, name string) []byte {
+func (b *Buffer) buidParseCmd(query, name string, p int) []byte {
 	b.WriteByte(parseCommand)
 	b.Write([]byte{0, 0, 0, 0})
 	b.WriteString(name)
 	b.WriteByte(0)
-
 	b.WriteString(query)
 	b.WriteByte(0)
-
-	b.Write([]byte{0, 1}) // number of params
-	paramId := []byte{0, 0, 0, 0}
-	binary.BigEndian.PutUint32(paramId, uint32(23))
-	b.Write(paramId)
+	buf := binary.BigEndian.AppendUint16(make([]byte, 0, p), uint16(p))
+	b.Write(buf)
+	for range p {
+		paramId := []byte{0, 0, 0, 0}
+		binary.BigEndian.PutUint32(paramId, uint32(23))
+		b.Write(paramId)
+	}
 	data := b.Bytes()
 	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
 	b.Reset()

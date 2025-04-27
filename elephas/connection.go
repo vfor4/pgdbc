@@ -7,8 +7,11 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 
 	"mellium.im/sasl"
@@ -23,11 +26,30 @@ type Connection struct {
 
 func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	var b Buffer
-	_, err := c.netConn.Write(b.buildQuery(query, args))
+	log.Println("ExecContext")
+	portalName := "portalvu"
+	_, err := c.netConn.Write(b.buildBindCmd(name, portalName))
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	q := b.buildQuery(query, args)
+	log.Println(q)
+	_, err = c.netConn.Write(b.buildQuery(query, args))
+	if err != nil {
+		return nil, err
+	}
+	tags, err := ReadCommandComplete(c.reader)
+	if err != nil {
+		if err != io.EOF {
+			return nil, err
+		}
+	}
+
+	effectedRows, err := strconv.Atoi(tags[1])
+	if err != nil {
+		return nil, err
+	}
+	return driver.RowsAffected(effectedRows), nil
 }
 
 // PrepareContext returns a prepared statement, bound to this connection.
@@ -40,24 +62,20 @@ func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.S
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 	var b Buffer
 	name := "test"
-	cmd := b.buidParseCmd(query, name)
-	_, err := c.netConn.Write(cmd)
+	co := strings.Count(query, "?")
+	for i := range co {
+		query = strings.Replace(query, "?", fmt.Sprintf("$%d", i+1), 1)
+	}
+	_, err := c.netConn.Write(b.buidParseCmd(query, name, co))
 	if err != nil {
 		return nil, err
 	}
-	portalName := "portalvu"
-	cmd = b.buildBindCmd(name, portalName)
-	_, err = c.netConn.Write(cmd)
+	_, err = c.netConn.Write(b.buildFlushCmd())
 	if err != nil {
 		return nil, err
 	}
-	// cmd = b.buildFlushCmd()
-	// _, err = c.netConn.Write(cmd)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
-	return &Stmt{netConn: c.netConn, portalName: portalName}, nil
+	return &Stmt{netConn: c.netConn, name: name}, nil
 }
 
 func (c *Connection) Close() error {
@@ -245,4 +263,51 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 		return &Rows{}, err
 	}
 	return &rows, nil
+}
+
+func (c *Connection) Ping(ctx context.Context) error {
+	var b Buffer
+	_, err := c.netConn.Write(b.buildQuery("select 1", nil))
+	if err != nil {
+		return err
+	}
+	for {
+		t, err := c.reader.ReadByte()
+		if err != nil {
+			return err
+		}
+		l, err := c.reader.Read4Bytes()
+		if err != nil {
+			return err
+		}
+		switch t {
+		case rowDescription:
+			_, _ = c.reader.Discard(int(l - 4))
+		case dataRow:
+			fc, err := c.reader.Read2Bytes()
+			if err != nil {
+				return err
+			}
+			if fc != 1 {
+				return errors.New("field count is not 1")
+			}
+			cl, err := c.reader.Read4Bytes()
+			if err != nil {
+				return err
+			}
+			if cl != 1 {
+				return errors.New("column length is not 1")
+			}
+			d, err := c.reader.ReadByte()
+			log.Println(string(d))
+		case commandComplete:
+			_, _ = c.reader.Discard(int(l - 4))
+		case readyForQuery:
+			_, _ = c.reader.Discard(int(l - 4))
+			return nil
+		default:
+			z, _ := c.reader.ReadByte()
+			panic(z)
+		}
+	}
 }
