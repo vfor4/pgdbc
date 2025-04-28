@@ -88,9 +88,7 @@ func (b *Buffer) buidParseCmd(query, name string, p int) []byte {
 	buf := binary.BigEndian.AppendUint16(make([]byte, 0, p), uint16(p))
 	b.Write(buf)
 	for range p {
-		paramId := []byte{0, 0, 0, 0}
-		binary.BigEndian.PutUint32(paramId, uint32(23))
-		b.Write(paramId)
+		b.Write([]byte{0, 0, 0, 0})
 	}
 	data := b.Bytes()
 	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
@@ -106,22 +104,37 @@ func (b *Buffer) buildFlushCmd() []byte {
 	b.Reset()
 	return data
 }
-func (b *Buffer) buildBindCmd(nameStmt string, portalName string) []byte {
+func (b *Buffer) buildBindCmd(args []driver.NamedValue, namedStmt string, portalName string) []byte {
 	b.WriteByte(bindCommand)
 	b.Write([]byte{0, 0, 0, 0})
 	b.WriteString(portalName)
 	b.WriteByte(0)
 
-	b.WriteString(nameStmt)
+	b.WriteString(namedStmt)
 	b.WriteByte(0)
 
-	b.Write([]byte{0, 1}) // number of param format
-	b.Write([]byte{0, 1}) // param format code 0: text 1: binary
+	n := len(args)
+	buf := make([]byte, 2)
+	binary.BigEndian.PutUint16(buf, uint16(n))
+	b.Write(buf) // number of param format
+	for range n {
+		b.Write([]byte{0, 1}) // 0: text 1: binary
+	}
 
-	b.Write([]byte{0, 1}) // number of param value
-	binary.Write(b, binary.BigEndian, int32(4))
-	binary.Write(b, binary.BigEndian, int32(5))
-
+	b.Write(buf) // number of param value
+	for _, v := range args {
+		if v.Value == nil {
+			binary.Write(b, binary.BigEndian, int32(1))
+		} else {
+			if s, ok := v.Value.(string); ok {
+				binary.Write(b, binary.BigEndian, int32(len(s)))
+				b.WriteString(s)
+			} else {
+				binary.Write(b, binary.BigEndian, int32(intDataSize(v.Value)))
+				binary.Write(b, binary.BigEndian, v.Value)
+			}
+		}
+	}
 	binary.Write(b, binary.BigEndian, int16(1)) // result col
 	binary.Write(b, binary.BigEndian, int16(0)) // result col format 0:text 1:binary
 
@@ -170,4 +183,44 @@ func aToString(value driver.Value) string {
 		return fmt.Sprintf("%v", value)
 	}
 	return fmt.Sprintf("'%v'", s)
+}
+
+func intDataSize(data any) int {
+	switch data := data.(type) {
+	case bool, int8, uint8, *bool, *int8, *uint8:
+		return 1
+	case []bool:
+		return len(data)
+	case []int8:
+		return len(data)
+	case []uint8:
+		return len(data)
+	case int16, uint16, *int16, *uint16:
+		return 2
+	case []int16:
+		return 2 * len(data)
+	case []uint16:
+		return 2 * len(data)
+	case int32, uint32, *int32, *uint32:
+		return 4
+	case []int32:
+		return 4 * len(data)
+	case []uint32:
+		return 4 * len(data)
+	case int64, uint64, *int64, *uint64:
+		return 8
+	case []int64:
+		return 8 * len(data)
+	case []uint64:
+		return 8 * len(data)
+	case float32, *float32:
+		return 4
+	case float64, *float64:
+		return 8
+	case []float32:
+		return 4 * len(data)
+	case []float64:
+		return 8 * len(data)
+	}
+	return 0
 }

@@ -20,6 +20,7 @@ const (
 	flushCommand     = 'H'
 	syncCommand      = 'S'
 	describeCommand  = 'D'
+	parseComplete    = '1'
 
 	SASL         = 10
 	SASLContinue = 11

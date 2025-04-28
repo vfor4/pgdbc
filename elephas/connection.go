@@ -7,10 +7,8 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,33 +22,33 @@ type Connection struct {
 	reader  *Reader
 }
 
-func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	var b Buffer
-	log.Println("ExecContext")
-	portalName := "portalvu"
-	_, err := c.netConn.Write(b.buildBindCmd(name, portalName))
-	if err != nil {
-		return nil, err
-	}
-	q := b.buildQuery(query, args)
-	log.Println(q)
-	_, err = c.netConn.Write(b.buildQuery(query, args))
-	if err != nil {
-		return nil, err
-	}
-	tags, err := ReadCommandComplete(c.reader)
-	if err != nil {
-		if err != io.EOF {
-			return nil, err
-		}
-	}
-
-	effectedRows, err := strconv.Atoi(tags[1])
-	if err != nil {
-		return nil, err
-	}
-	return driver.RowsAffected(effectedRows), nil
-}
+// func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+// 	var b Buffer
+// 	log.Println("ExecContext")
+// 	portalName := "portalvu"
+// 	_, err := c.netConn.Write(b.buildBindCmd(name, portalName))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	q := b.buildQuery(query, args)
+// 	log.Println(q)
+// 	_, err = c.netConn.Write(b.buildQuery(query, args))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	tags, err := ReadCommandComplete(c.reader)
+// 	if err != nil {
+// 		if err != io.EOF {
+// 			return nil, err
+// 		}
+// 	}
+//
+// 	effectedRows, err := strconv.Atoi(tags[1])
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return driver.RowsAffected(effectedRows), nil
+// }
 
 // PrepareContext returns a prepared statement, bound to this connection.
 // context is for the preparation of the statement,
@@ -62,11 +60,11 @@ func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.S
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 	var b Buffer
 	name := "test"
-	co := strings.Count(query, "?")
-	for i := range co {
+	w := strings.Count(query, "?")
+	for i := range w {
 		query = strings.Replace(query, "?", fmt.Sprintf("$%d", i+1), 1)
 	}
-	_, err := c.netConn.Write(b.buidParseCmd(query, name, co))
+	_, err := c.netConn.Write(b.buidParseCmd(query, name, w))
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +72,12 @@ func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = ReadStmtComplete(c.reader, parseComplete)
+	if err != nil {
+		return nil, err
+	}
 
-	return &Stmt{netConn: c.netConn, name: name}, nil
+	return &Stmt{netConn: c.netConn, name: name, want: w}, nil
 }
 
 func (c *Connection) Close() error {
