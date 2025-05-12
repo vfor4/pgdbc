@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/binary"
+	"database/sql/driver"
 	"fmt"
 	"log"
 	_ "order/elephas"
@@ -20,25 +19,50 @@ type Order struct {
 }
 
 func main() {
-	// ctx, err := order.Start(context.Background(), "localhost", "8081")
+	// // ctx, err := order.Start(context.Background(), "localhost", "8081")
+	// // if err != nil {
+	// // 	fmt.Println(err)
+	// // }
+	// // <-ctx.Done()
+	// num := int(1)
+	// // Big-endian
+	// bufBig := new(bytes.Buffer)
+	// err := binary.Write(bufBig, binary.BigEndian, num)
 	// if err != nil {
-	// 	fmt.Println(err)
+	// 	log.Println(err)
 	// }
-	// <-ctx.Done()
-	num := int(1)
-	// Big-endian
-	bufBig := new(bytes.Buffer)
-	err := binary.Write(bufBig, binary.BigEndian, num)
-	if err != nil {
-		log.Println(err)
+	//
+	// fmt.Printf("Big-endian:    % X\n", bufBig.Bytes())
+	//
+	// // Little-endian
+	// bufLittle := new(bytes.Buffer)
+	// binary.Write(bufLittle, binary.LittleEndian, num)
+	// fmt.Printf("Little-endian: % X\n", bufLittle.Bytes())
+	projects := []struct {
+		name string
+		age  int32
+	}{
+		{"Person A", 99},
 	}
+	args := buildArgs(projects[0].name, projects[0].age)
+	for _, v := range args {
+		switch v.Value.(type) {
+		case int64:
+			log.Println("64")
+		}
+	}
+}
 
-	fmt.Printf("Big-endian:    % X\n", bufBig.Bytes())
-
-	// Little-endian
-	bufLittle := new(bytes.Buffer)
-	binary.Write(bufLittle, binary.LittleEndian, num)
-	fmt.Printf("Little-endian: % X\n", bufLittle.Bytes())
+func buildArgs(args ...any) []driver.NamedValue {
+	nvargs := make([]driver.NamedValue, len(args))
+	var n int
+	for _, arg := range args {
+		nv := &nvargs[n]
+		nv.Ordinal = n + 1
+		n = n + 1
+		nv.Value = arg
+	}
+	return nvargs
 }
 
 func toPrepare(db *sql.DB, ctx context.Context) error {

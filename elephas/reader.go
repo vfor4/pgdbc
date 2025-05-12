@@ -2,6 +2,7 @@ package elephas
 
 import (
 	"bufio"
+	"database/sql/driver"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -49,21 +50,24 @@ func (r Reader) ReadCommandComplete() (string, error) {
 	return strings.Trim(cmdTag, "\x00"), nil
 }
 
-func (r Reader) ReadReadyForQuery() (TransactionStatus, error) {
-	if t, err := r.ReadByte(); err != nil {
-		return E, errors.New("unable to read msg type")
-	} else if t != readyForQuery {
-		return E, fmt.Errorf("expect msg type is readForQuery but got (%v)", t)
+func ReadReadyForQuery(r *Reader) error {
+	if r.Buffered() > 0 {
+		if t, err := r.ReadByte(); err != nil {
+			return err
+		} else if t != readyForQuery {
+			return fmt.Errorf("expect msg type is readForQuery but got (%v)", t)
+		}
+		_, err := r.Read4Bytes()
+		if err != nil {
+			return err
+		}
+		if s, err := r.ReadByte(); err != nil {
+			return err
+		} else if TransactionStatus(s) != I {
+			return fmt.Errorf("Expected Idle status but got %v", s)
+		}
 	}
-	_, err := r.Read4Bytes()
-	if err != nil {
-		return E, err
-	}
-	txStatus, err := r.ReadByte()
-	if err != nil {
-		return E, err
-	}
-	return TransactionStatus(txStatus), nil
+	return nil
 }
 
 func (r Reader) ReadBytesToAny(size uint32, oid uint32, format uint16) (any, error) {
@@ -130,17 +134,13 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	return d, nil
 }
 
-func ReadSimpleQueryRes(r *Reader, conn net.Conn) (Rows, error) {
+func ReadRows(r *Reader, conn net.Conn) (Rows, error) {
 	msgType, err := r.ReadByte()
 	if err != nil {
 		panic(err)
 	}
 	if msgType == errorResponseMsg {
-		errResponse, err := ReadErrorResponse(r)
-		if err != nil {
-			panic(err)
-		}
-		return Rows{}, fmt.Errorf("Server response with an error = %+v\n", errResponse.Error())
+		return Rows{}, fmt.Errorf("Server response with an error = %+v\n", ReadErrorResponse(r).Error())
 	} else {
 		switch msgType {
 		case rowDescription:
@@ -178,11 +178,7 @@ func ReadSimpleQueryRes(r *Reader, conn net.Conn) (Rows, error) {
 			rows.reader = r
 			return rows, nil
 		case errorResponseMsg:
-			errResponse, err := ReadErrorResponse(r)
-			if err != nil {
-				panic(err)
-			}
-			return Rows{}, errResponse
+			return Rows{}, ReadErrorResponse(r)
 		default:
 			return Rows{}, fmt.Errorf("Not expected type %v", msgType)
 		}
@@ -198,4 +194,33 @@ func ReadStmtComplete(r *Reader, c byte) error {
 		return fmt.Errorf("Expected Complete with %v but got %v", c, t)
 	}
 	return nil
+}
+
+func ReadResult(r *Reader) (driver.Result, error) {
+	for {
+		t, err := r.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		switch t {
+		case errorResponseMsg:
+			return nil, ReadErrorResponse(r)
+		case commandComplete:
+			_, err := r.Read4Bytes()
+			if err != nil {
+				return nil, err
+			}
+			tag, err := r.ReadString(0)
+			if err != nil {
+				return nil, err
+			}
+			if strings.HasPrefix(tag, "CREATE") {
+				return driver.ResultNoRows, nil
+			}
+			return driver.RowsAffected(0), nil
+		default:
+			panic(t)
+		}
+
+	}
 }

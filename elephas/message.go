@@ -21,6 +21,7 @@ const (
 	syncCommand      = 'S'
 	describeCommand  = 'D'
 	parseComplete    = '1'
+	bindComplete     = '2'
 
 	SASL         = 10
 	SASLContinue = 11

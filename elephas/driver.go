@@ -15,6 +15,10 @@ type Driver struct {
 	connector *Connector
 }
 
+func NewDriver() *Driver {
+	return &Driver{}
+}
+
 func init() {
 	sql.Register(name, NewDriver())
 }
@@ -48,10 +52,6 @@ func (d *Driver) parse(dsn string) (*Config, error) {
 		Password: passw,
 		Database: u.Path[1:],
 	}, nil
-}
-
-func NewDriver() *Driver {
-	return &Driver{}
 }
 
 func ReadCommandComplete(r *Reader) ([]string, error) {

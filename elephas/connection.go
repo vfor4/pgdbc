@@ -3,10 +3,12 @@ package elephas
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"hash"
 	"log"
 	"net"
 	"strings"
@@ -57,9 +59,15 @@ func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.S
 	return c.Prepare(query)
 }
 
+var hw hash.Hash = sha256.New()
+
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
+	if err := ReadReadyForQuery(c.reader); err != nil {
+		return nil, err
+	}
 	var b Buffer
-	name := "test"
+	_, _ = hw.Write([]byte(query))
+	name := fmt.Sprintf("%x", hw.Sum(nil))
 	w := strings.Count(query, "?")
 	for i := range w {
 		query = strings.Replace(query, "?", fmt.Sprintf("$%d", i+1), 1)
@@ -77,7 +85,7 @@ func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 		return nil, err
 	}
 
-	return &Stmt{netConn: c.netConn, name: name, want: w}, nil
+	return &Stmt{netConn: c.netConn, statement: name, want: w}, nil
 }
 
 func (c *Connection) Close() error {
@@ -108,12 +116,8 @@ func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 	if cmdTag != string(beginCmd) {
 		return nil, fmt.Errorf("Expect BEGIN command tag but got (%v)", cmdTag)
 	}
-	txStatus, err := c.reader.ReadReadyForQuery()
-	if err != nil {
-		return nil, fmt.Errorf("Expect ReadAndExpect(%v)", txStatus)
-	}
-	if txStatus == T {
-		log.Println("in tx")
+	if err := ReadReadyForQuery(c.reader); err != nil {
+		return nil, err
 	}
 	return NewTransaction(c), nil
 }
@@ -150,10 +154,7 @@ func (c *Connection) makeHandShake() error {
 			return nil
 		case errorResponseMsg:
 			// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ERRORRESPONSE
-			errResponse, err := ReadErrorResponse(c.reader)
-			if err != nil {
-				panic(err)
-			}
+			errResponse := ReadErrorResponse(c.reader)
 			panic(fmt.Sprintf("Server response with an error = %+v\n", errResponse.Error()))
 		default:
 			panic(fmt.Sprintf("Not expected type %v", msgType))
@@ -260,11 +261,28 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 	if err != nil {
 		panic(err)
 	}
-	rows, err := ReadSimpleQueryRes(c.reader, c.netConn)
+	rows, err := ReadRows(c.reader, c.netConn)
 	if err != nil {
 		return &Rows{}, err
 	}
 	return &rows, nil
+}
+
+func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	if err := ReadReadyForQuery(c.reader); err != nil {
+		return nil, err
+	}
+	var b Buffer
+	_, err := c.netConn.Write(b.buildQuery(query, args))
+	if err != nil {
+		return nil, err
+	}
+	r, err := ReadResult(c.reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
 }
 
 func (c *Connection) Ping(ctx context.Context) error {

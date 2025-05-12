@@ -25,12 +25,8 @@ func (tx *Tx) Commit() error {
 	if cmdTag != string(commitCmd) {
 		return fmt.Errorf("Expect COMMIT command but got (%v)", cmdTag)
 	}
-	txStatus, err := tx.conn.reader.ReadReadyForQuery()
-	if err != nil {
+	if err := ReadReadyForQuery(tx.conn.reader); err != nil {
 		return err
-	}
-	if txStatus != I {
-		return fmt.Errorf("Expect Idle transaction status but got (%v)", txStatus)
 	}
 	return nil
 
@@ -49,12 +45,8 @@ func (tx *Tx) Rollback() error {
 	if cmdTag != string(rollbackCmd) {
 		return fmt.Errorf("Expect ROLLBACK command but got (%v)", cmdTag)
 	}
-	txStatus, err := tx.conn.reader.ReadReadyForQuery()
-	if err != nil {
+	if err := ReadReadyForQuery(tx.conn.reader); err != nil {
 		return err
-	}
-	if txStatus != I {
-		return fmt.Errorf("Expect Idle transaction status but got (%v)", txStatus)
 	}
 	return nil
 }

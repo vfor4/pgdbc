@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"log"
 )
 
 type Rows struct {
@@ -28,7 +27,10 @@ func (r *Rows) Close() error {
 		case commandComplete:
 			_, _ = ReadCommandComplete(r.reader)
 		case readyForQuery:
-			return ReadReadyForQuery(r.reader)
+			if err := ReadReadyForQuery(r.reader); err != nil {
+				return err
+			}
+			return nil
 		default:
 			panic(errors.New("Close should be here"))
 		}
@@ -43,17 +45,6 @@ func (r *Rows) Close() error {
 // time.Time
 func (r *Rows) Next(dest []driver.Value) error {
 	return ReadDataRow(dest, r)
-}
-func ReadReadyForQuery(r *Reader) error {
-	_, err := r.Read4Bytes()
-	if err != nil {
-		return err
-	}
-	s, _ := r.ReadByte()
-	if s == 'I' {
-		log.Print("Status is Idle")
-	}
-	return nil
 }
 
 func ReadDataRow(dest []driver.Value, r *Rows) error {

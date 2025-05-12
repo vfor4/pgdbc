@@ -8,9 +8,9 @@ import (
 )
 
 type Stmt struct {
-	netConn net.Conn
-	name    string
-	want    int
+	netConn   net.Conn
+	statement string
+	want      int
 }
 
 func (st Stmt) Close() error {
@@ -30,13 +30,35 @@ func (st Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 	if len(args) != 0 && len(args[0].Name) != 0 {
 		panic("not suppported named arg")
 	}
+	portal := "portal_test"
 	var b Buffer
-	_, err := st.netConn.Write(b.buildBindCmd(args, st.name, "portal_test"))
+	_, err := st.netConn.Write(b.buildBindCmd(args, st.statement, portal))
 	if err != nil {
 		return nil, err
 	}
-	// reader := NewReader(bufio.NewReader(st.netConn))
+	// _, err = st.netConn.Write(b.buildFlushCmd())
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	_, err = st.netConn.Write(b.buildExecuteCmd(portal))
+	if err != nil {
+		return nil, err
+	}
+	// _, err = st.netConn.Write(b.buildFlushCmd())
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// _, err = st.netConn.Write(b.buildSync())
+	// if err != nil {
+	// 	return nil, err
+	// }
+
 	return nil, nil
+}
+
+func (st Stmt) CheckNamedValue(n *driver.NamedValue) error {
+	return nil
 }
 
 // Deprecated: Drivers should implement StmtQueryContext instead (or additionally).
@@ -46,7 +68,7 @@ func (st Stmt) Query(args []driver.Value) (driver.Rows, error) {
 
 func (st Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
 	var b Buffer
-	_, err := st.netConn.Write(b.buildDescribe(st.name))
+	_, err := st.netConn.Write(b.buildDescribe(st.statement))
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +77,7 @@ func (st Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 		return nil, err
 	}
 	reader := NewReader(bufio.NewReader(st.netConn))
-	_, err = ReadSimpleQueryRes(reader, nil)
+	_, err = ReadRows(reader, nil)
 	if err != nil {
 		return nil, err
 	}

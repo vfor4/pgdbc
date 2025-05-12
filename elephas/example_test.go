@@ -40,6 +40,27 @@ func TestMain(m *testing.M) {
 	log.Printf("excode: %v ", ec)
 }
 
+func noError(err error, t *testing.T) {
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStmtExecContextSuccess(t *testing.T) {
+	_, err := db.Exec("create temporary table t(id int primary key)")
+	noError(err, t)
+
+	stmt, err := db.Prepare("insert into t(id) values (?)")
+	noError(err, t)
+	defer stmt.Close()
+	values := []int32{42}
+	for _, v := range values {
+		_, err = stmt.ExecContext(context.Background(), v)
+		noError(err, t)
+	}
+	// ensureDBValid(t, db)
+}
+
 // func TestQueryContext(t *testing.T) {
 // 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", 20)
 // 	if err != nil {
@@ -178,29 +199,92 @@ func TestMain(m *testing.M) {
 // 	log.Println(status)
 // }
 
-func TestPrepare(t *testing.T) {
-	projects := []struct {
-		name string
-		age  int
-	}{
-		{"Person A", 34},
-		{"Person B", 24},
-		{"Person C", 19},
-		{"Person D", 65},
-	}
+// func TestPrepare(t *testing.T) {
+// 	projects := []struct {
+// 		name string
+// 		age  int32
+// 	}{
+// 		{"Person A", 99},
+// 		// {"Person B", 24},
+// 		// {"Person C", 19},
+// 		// {"Person D", 65},test
+// 	}
+//
+// 	stmt, err := db.Prepare("INSERT INTO users(name, age) VALUES(?, ?)")
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	defer stmt.Close() // Prepared statements take up server resources and should be closed after use.
+//
+// 	for _, project := range projects {
+// 		if _, err := stmt.Exec(project.name, project.age); err != nil {
+// 			log.Fatal(err)
+// 		}
+// 	}
+// }
 
-	stmt, err := db.Prepare("INSERT INTO users(name, age) VALUES(?, ?)")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer stmt.Close() // Prepared statements take up server resources and should be closed after use.
+// func TestStmtExecContextSuccess(t *testing.T) {
+// 	_, err := db.Exec("create temporary table t(id int primary key)")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+//
+// 	stmt, err := db.Prepare("insert into t(id) values ($1::int4)")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	defer stmt.Close()
+//
+// 	_, err = stmt.ExecContext(context.Background(), 42)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+//
+// 	// ensureDBValid(t, db)
+// }
 
-	for _, project := range projects {
-		if _, err := stmt.Exec(project.name, project.age); err != nil {
-			log.Fatal(err)
-		}
-	}
-}
+// func ensureDBValid(t testing.TB, db *sql.DB) {
+// 	var sum, rowCount int32
+//
+// 	rows, err := db.Query("select generate_series(1,$1)", 10)
+// 	require.NoError(t, err)
+// 	defer rows.Close()
+//
+// 	for rows.Next() {
+// 		var n int32
+// 		rows.Scan(&n)
+// 		sum += n
+// 		rowCount++
+// 	}
+//
+// 	require.NoError(t, rows.Err())
+//
+// 	if rowCount != 10 {
+// 		t.Error("Select called onDataRow wrong number of times")
+// 	}
+// 	if sum != 55 {
+// 		t.Error("Wrong values returned")
+// 	}
+// }
+
+// func TestStmtExecContextSuccess(t *testing.T) {
+//
+// 	_, err := db.Exec("create temporary table t(id int primary key)")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+//
+// 	// stmt, err := db.Prepare("insert into t(id) values ($1::int4)")
+// 	// if err != nil {
+// 	// 	t.Fatal(err)
+// 	// }
+// 	// defer stmt.Close()
+// 	//
+// 	// _, err = stmt.ExecContext(context.Background(), 42)
+// 	// if err != nil {
+// 	// 	t.Fatal(err)
+// 	// }
+// }
 
 //
 // func ExampleTx_Prepare() {
