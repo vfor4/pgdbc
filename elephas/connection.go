@@ -85,7 +85,7 @@ func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 		return nil, err
 	}
 
-	return &Stmt{netConn: c.netConn, statement: name, want: w}, nil
+	return &Stmt{netConn: c.netConn, reader: c.reader, statement: name, want: w}, nil
 }
 
 func (c *Connection) Close() error {

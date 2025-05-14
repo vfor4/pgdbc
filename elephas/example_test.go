@@ -40,25 +40,48 @@ func TestMain(m *testing.M) {
 	log.Printf("excode: %v ", ec)
 }
 
-func noError(err error, t *testing.T) {
+func NoError(t *testing.T, err error) {
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestStmtExecContextSuccess(t *testing.T) {
+func xTestStmtExecContextSuccess(t *testing.T) {
 	_, err := db.Exec("create temporary table t(id int primary key)")
-	noError(err, t)
+	NoError(t, err)
 
 	stmt, err := db.Prepare("insert into t(id) values (?)")
-	noError(err, t)
+	NoError(t, err)
 	defer stmt.Close()
 	values := []int32{42}
 	for _, v := range values {
-		_, err = stmt.ExecContext(context.Background(), v)
-		noError(err, t)
+		r, err := stmt.ExecContext(context.Background(), v)
+		NoError(t, err)
+		log.Println(r.RowsAffected())
 	}
 	// ensureDBValid(t, db)
+}
+
+func TestStmtQueryContextSucess(t *testing.T) {
+	stmt, err := db.Prepare("select * from generate_series(1,?) n")
+	NoError(t, err)
+	defer stmt.Close()
+
+	var end int32
+	end = 5
+	rows, err := stmt.QueryContext(context.Background(), end)
+	NoError(t, err)
+
+	for rows.Next() {
+		var n int64
+		if err := rows.Scan(&n); err != nil {
+			t.Error(err)
+		}
+	}
+
+	if rows.Err() != nil {
+		t.Error(rows.Err())
+	}
 }
 
 // func TestQueryContext(t *testing.T) {

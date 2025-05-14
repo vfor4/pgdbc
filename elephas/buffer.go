@@ -98,9 +98,8 @@ func (b *Buffer) buidParseCmd(query, name string, p int) []byte {
 
 func (b *Buffer) buildFlushCmd() []byte {
 	b.WriteByte(flushCommand)
-	b.Write([]byte{0, 0, 0, 0})
+	b.Write([]byte{0, 0, 0, 4})
 	data := b.Bytes()
-	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
 	b.Reset()
 	return data
 }
@@ -113,14 +112,12 @@ func (b *Buffer) buildBindCmd(args []driver.NamedValue, namedStmt string, portal
 	b.WriteString(namedStmt)
 	b.WriteByte(0)
 
+	b.Write([]byte{0, 1}) // number of param format
+	b.Write([]byte{0, 1}) // binary
+
 	n := len(args)
 	buf := make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(n))
-	b.Write(buf) // number of param format
-	for range n {
-		b.Write([]byte{0, 1}) // 0: text 1: binary
-	}
-
 	b.Write(buf) // number of param value
 	for _, v := range args {
 		if v.Value == nil {
@@ -155,6 +152,7 @@ func (b *Buffer) buildExecuteCmd(namePortal string) []byte {
 	b.Write([]byte{0, 0, 0, 0})
 	b.WriteString(namePortal)
 	b.WriteByte(0)
+	b.Write([]byte{0, 0, 0, 0})
 	data := b.Bytes()
 	binary.BigEndian.PutUint32(data[1:], uint32(len(data)-1))
 	b.Reset()
@@ -173,7 +171,7 @@ func (b *Buffer) buildSync() []byte {
 func (b *Buffer) buildDescribe(name string) []byte {
 	b.WriteByte(describeCommand)
 	b.Write([]byte{0, 0, 0, 0})
-	b.WriteByte(byte('P')) // S: statement ; P: portal
+	b.WriteByte(byte('S')) // S: statement ; P: portal
 	b.WriteString(name)
 	b.WriteByte(0)
 	data := b.Bytes()

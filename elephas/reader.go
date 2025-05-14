@@ -193,6 +193,9 @@ func ReadStmtComplete(r *Reader, c byte) error {
 	if t != c {
 		return fmt.Errorf("Expected Complete with %v but got %v", c, t)
 	}
+	if n, _ := r.Discard(4); n != 4 {
+		return errors.New("Failed to discard Complete command type")
+	}
 	return nil
 }
 
