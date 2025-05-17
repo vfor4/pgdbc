@@ -261,9 +261,9 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 	if err != nil {
 		panic(err)
 	}
-	rows, err := ReadRows(c.reader, c.netConn)
+	rows, err := ReadRows(c.reader)
 	if err != nil {
-		return &Rows{}, err
+		return &Row{}, err
 	}
 	return &rows, nil
 }

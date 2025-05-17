@@ -85,15 +85,47 @@ func (st Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 	if err != nil {
 		return nil, err
 	}
-	_, err = st.netConn.Write(b.buildExecuteCmd(pn))
-	if err != nil {
-		return nil, err
-	}
 	_, err = st.netConn.Write(b.buildFlushCmd())
 	if err != nil {
 		return nil, err
 	}
-	return &Rows{}, nil
+	if err := CheckBindCompletion(st.reader); err != nil {
+		return nil, err
+	}
+	_, err = st.netConn.Write(b.buildDescribe(pn))
+	if err != nil {
+		return nil, err
+	}
+	_, err = st.netConn.Write(b.buildExecuteCmd(pn))
+	if err != nil {
+		return nil, err
+	}
+	_, err = st.netConn.Write(b.buildSync())
+	if err != nil {
+		return nil, err
+	}
+	rows, err := ReadRows(st.reader)
+	if err != nil {
+		return nil, err
+	}
+	return &rows, nil
 }
 
-// func ReadParameterDescription(r *Reader)
+func CheckBindCompletion(r *Reader) error {
+	if bc, err := r.ReadByte(); err != nil {
+		return err
+	} else if bc != bindComplete {
+		return fmt.Errorf("Expected BindCompletion(50) but got %v", bc)
+	}
+	r.Discard(4)
+	return nil
+}
+
+func CheckCommandCompletion(r *Reader) error {
+	if bc, err := r.ReadByte(); err != nil {
+		return err
+	} else if bc != commandComplete {
+		return fmt.Errorf("Expected CommandCompletion(68) but got %v", bc)
+	}
+	return nil
+}

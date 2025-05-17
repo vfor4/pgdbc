@@ -73,7 +73,7 @@ func TestStmtQueryContextSucess(t *testing.T) {
 	NoError(t, err)
 
 	for rows.Next() {
-		var n int64
+		var n int32
 		if err := rows.Scan(&n); err != nil {
 			t.Error(err)
 		}

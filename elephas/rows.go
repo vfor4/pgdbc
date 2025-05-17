@@ -2,39 +2,22 @@ package elephas
 
 import (
 	"database/sql/driver"
-	"errors"
 	"fmt"
 )
 
-type Rows struct {
+type Row struct {
 	cols       []string
 	oids       []uint32
 	colFormats []uint16
 	reader     *Reader
 }
 
-func (r *Rows) Columns() []string {
+func (r *Row) Columns() []string {
 	return r.cols
 }
 
-func (r *Rows) Close() error {
-	for {
-		t, err := r.reader.ReadByte()
-		if err != nil {
-			return err
-		}
-		switch t {
-		case commandComplete:
-			_, _ = ReadCommandComplete(r.reader)
-		case readyForQuery:
-			if err := ReadReadyForQuery(r.reader); err != nil {
-				return err
-			}
-			return nil
-		default:
-			panic(errors.New("Close should be here"))
-		}
-	}
+func (r *Row) Close() error {
+	return nil
 }
 
 // int64
@@ -43,11 +26,11 @@ func (r *Rows) Close() error {
 // []byte
 // string
 // time.Time
-func (r *Rows) Next(dest []driver.Value) error {
+func (r *Row) Next(dest []driver.Value) error {
 	return ReadDataRow(dest, r)
 }
 
-func ReadDataRow(dest []driver.Value, r *Rows) error {
+func ReadDataRow(dest []driver.Value, r *Row) error {
 	msgType, err := r.reader.ReadByte()
 	if err != nil {
 		panic(err)
@@ -59,8 +42,7 @@ func ReadDataRow(dest []driver.Value, r *Rows) error {
 	if msgType != dataRow {
 		panic(fmt.Errorf("expected data row - D(68) type but got %v", msgType))
 	}
-	_, err = r.reader.Read4Bytes() // skip msgLen
-	if err != nil {
+	if _, err = r.reader.Read4Bytes(); err != nil {
 		panic(err)
 	}
 	fieldCount, err := r.reader.Read2Bytes()

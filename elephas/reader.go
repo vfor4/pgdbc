@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -15,9 +14,6 @@ import (
 
 type Reader struct {
 	*bufio.Reader
-}
-
-type DataRow struct {
 }
 
 func NewReader(r *bufio.Reader) *Reader {
@@ -55,7 +51,7 @@ func ReadReadyForQuery(r *Reader) error {
 		if t, err := r.ReadByte(); err != nil {
 			return err
 		} else if t != readyForQuery {
-			return fmt.Errorf("expect msg type is readForQuery but got (%v)", t)
+			return fmt.Errorf("Expected ReadForQuery but got (%v)", t)
 		}
 		_, err := r.Read4Bytes()
 		if err != nil {
@@ -103,7 +99,16 @@ func (r Reader) ReadBytesToAny(size uint32, oid uint32, format uint16) (any, err
 			panic(fmt.Sprintf("the OID type %v is not implemented", oid))
 		}
 	case uint16(fmtBinary):
-		panic("todo binary format")
+		switch size {
+		case 2:
+			return binary.BigEndian.Uint16(b), nil
+		case 4:
+			return binary.BigEndian.Uint32(b), nil
+		case 8:
+			return binary.BigEndian.Uint64(b), nil
+		default:
+			panic("todo")
+		}
 	default:
 		return nil, fmt.Errorf("unexpected format type")
 	}
@@ -134,54 +139,50 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	return d, nil
 }
 
-func ReadRows(r *Reader, conn net.Conn) (Rows, error) {
+func ReadRows(r *Reader) (Row, error) {
 	msgType, err := r.ReadByte()
 	if err != nil {
 		panic(err)
 	}
-	if msgType == errorResponseMsg {
-		return Rows{}, fmt.Errorf("Server response with an error = %+v\n", ReadErrorResponse(r).Error())
-	} else {
-		switch msgType {
-		case rowDescription:
-			_, err := r.Read4Bytes() // msgLen
-			if err != nil {
-				panic(err)
-			}
-			fieldCount, err := r.Read2Bytes()
-			if err != nil {
-				panic(err)
-			}
-			var rows Rows
-			for range int(fieldCount) {
-				fieldName, err := r.ReadString(0)
-				if err != nil {
-					return Rows{}, errors.New("readRowDescription: Failed to read fieldName")
-				}
-				rows.cols = append(rows.cols, fieldName)
-				r.Discard(4 + 2) //skip tableOid, column index
-
-				typeOid, err := r.Read4Bytes()
-				if err != nil {
-					panic(err)
-				}
-				rows.oids = append(rows.oids, typeOid)
-				r.Discard(2 + 4) // skip column length, type modifier
-
-				fmt, err := r.Read2Bytes()
-				if err != nil {
-					panic(err)
-				}
-				rows.colFormats = append(rows.colFormats, fmt)
-
-			}
-			rows.reader = r
-			return rows, nil
-		case errorResponseMsg:
-			return Rows{}, ReadErrorResponse(r)
-		default:
-			return Rows{}, fmt.Errorf("Not expected type %v", msgType)
+	switch msgType {
+	case rowDescription:
+		_, err := r.Read4Bytes() // msgLen
+		if err != nil {
+			panic(err)
 		}
+		fieldCount, err := r.Read2Bytes()
+		if err != nil {
+			panic(err)
+		}
+		var rows Row
+		for range int(fieldCount) {
+			fieldName, err := r.ReadString(0)
+			if err != nil {
+				return Row{}, errors.New("readRowDescription: Failed to read fieldName")
+			}
+			rows.cols = append(rows.cols, fieldName)
+			r.Discard(4 + 2) //skip tableOid, column index
+
+			typeOid, err := r.Read4Bytes()
+			if err != nil {
+				panic(err)
+			}
+			rows.oids = append(rows.oids, typeOid)
+			r.Discard(2 + 4) // skip column length, type modifier
+
+			fmt, err := r.Read2Bytes()
+			if err != nil {
+				panic(err)
+			}
+			rows.colFormats = append(rows.colFormats, fmt)
+
+		}
+		rows.reader = r
+		return rows, nil
+	case errorResponseMsg:
+		return Row{}, ReadErrorResponse(r)
+	default:
+		return Row{}, fmt.Errorf("Not expected type %v", msgType)
 	}
 }
 

@@ -171,7 +171,7 @@ func (b *Buffer) buildSync() []byte {
 func (b *Buffer) buildDescribe(name string) []byte {
 	b.WriteByte(describeCommand)
 	b.Write([]byte{0, 0, 0, 0})
-	b.WriteByte(byte('S')) // S: statement ; P: portal
+	b.WriteByte(byte('P')) // S: statement ; P: portal
 	b.WriteString(name)
 	b.WriteByte(0)
 	data := b.Bytes()
