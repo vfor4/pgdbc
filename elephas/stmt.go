@@ -39,29 +39,25 @@ func (st Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 	if err != nil {
 		return nil, err
 	}
-	_, err = st.netConn.Write(b.buildExecuteCmd(portal))
-	if err != nil {
-		return nil, err
-	}
 	_, err = st.netConn.Write(b.buildFlushCmd())
 	if err != nil {
 		return nil, err
 	}
-	if bc, err := st.reader.ReadByte(); err != nil {
+	if err := CheckBindCompletion(st.reader); err != nil {
 		return nil, err
-	} else if bc != bindComplete {
-		return nil, fmt.Errorf("Expected BindComplete but got %v", bc)
 	}
-	st.reader.Discard(4)
-	tags, err := ReadCommandComplete(st.reader)
-	if err != nil && err != io.EOF {
+	_, err = st.netConn.Write(b.buildExecuteCmd(portal))
+	if err != nil {
 		return nil, err
 	}
 	_, err = st.netConn.Write(b.buildSync())
 	if err != nil {
 		return nil, err
 	}
-
+	tags, err := ReadCommandComplete(st.reader)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
 	if ra, err := strconv.Atoi(tags[len(tags)-1]); err != nil {
 		return driver.RowsAffected(0), nil
 	} else {

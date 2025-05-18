@@ -46,7 +46,7 @@ func NoError(t *testing.T, err error) {
 	}
 }
 
-func xTestStmtExecContextSuccess(t *testing.T) {
+func TestStmtExecContextSuccess(t *testing.T) {
 	_, err := db.Exec("create temporary table t(id int primary key)")
 	NoError(t, err)
 
@@ -55,11 +55,9 @@ func xTestStmtExecContextSuccess(t *testing.T) {
 	defer stmt.Close()
 	values := []int32{42}
 	for _, v := range values {
-		r, err := stmt.ExecContext(context.Background(), v)
+		_, err := stmt.ExecContext(context.Background(), v)
 		NoError(t, err)
-		log.Println(r.RowsAffected())
 	}
-	// ensureDBValid(t, db)
 }
 
 func TestStmtQueryContextSucess(t *testing.T) {
