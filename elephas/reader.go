@@ -20,7 +20,13 @@ func NewReader(r *bufio.Reader) *Reader {
 	return &Reader{r}
 }
 
-func (r Reader) Read4Bytes() (uint32, error) {
+func (r Reader) Read4Bytes() (int32, error) {
+	b := make([]byte, 4)
+	_, err := io.ReadFull(r, b)
+	return int32(binary.BigEndian.Uint32(b)), err
+}
+
+func (r Reader) Read4BytesUint32() (uint32, error) {
 	b := make([]byte, 4)
 	_, err := io.ReadFull(r, b)
 	return binary.BigEndian.Uint32(b), err
@@ -32,21 +38,7 @@ func (r Reader) Read2Bytes() (uint16, error) {
 	return binary.BigEndian.Uint16(b), err
 }
 
-func (r Reader) ReadCommandComplete() (string, error) {
-	if t, err := r.ReadByte(); err != nil {
-		return "", errors.New("unable to read msg type")
-	} else if t != commandComplete {
-		return "", fmt.Errorf("expect msg type is commandComplete but got (%v)", t)
-	}
-	_, err := r.Read4Bytes()
-	if err != nil {
-		return "", err
-	}
-	cmdTag, err := r.ReadString(0)
-	return strings.Trim(cmdTag, "\x00"), nil
-}
-
-func ReadReadyForQuery(r *Reader) error {
+func CheckReadyForQuery(r *Reader, txs TransactionStatus) error {
 	if r.Buffered() > 0 {
 		if t, err := r.ReadByte(); err != nil {
 			return err
@@ -59,14 +51,18 @@ func ReadReadyForQuery(r *Reader) error {
 		}
 		if s, err := r.ReadByte(); err != nil {
 			return err
-		} else if TransactionStatus(s) != I {
-			return fmt.Errorf("Expected Idle status but got %v", s)
+		} else if TransactionStatus(s) == E {
+			return fmt.Errorf("Expected %v status but got ERROR(%v)", txs, E)
 		}
 	}
 	return nil
 }
 
-func (r Reader) ReadBytesToAny(size uint32, oid uint32, format uint16) (any, error) {
+func (r Reader) ReadBytesToAny(size int32, oid uint32, format uint16) (any, error) {
+	if size == NULL_SIZE {
+		// select null
+		return nil, nil
+	}
 	b := make([]byte, size)
 	_, err := io.ReadFull(r, b)
 	if err != nil {
@@ -125,7 +121,7 @@ func (r Reader) handleAuthResp(authType uint32) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	respAuthType, err := r.Read4Bytes()
+	respAuthType, err := r.Read4BytesUint32()
 	if respAuthType != authType {
 		return nil, fmt.Errorf("expect authentication type (%v) but got: %v", authType, respAuthType)
 	}
@@ -155,7 +151,7 @@ func ReadRows(r *Reader) (Row, error) {
 			panic(err)
 		}
 		var rows Row
-		for range int(fieldCount) {
+		for range fieldCount {
 			fieldName, err := r.ReadString(0)
 			if err != nil {
 				return Row{}, errors.New("readRowDescription: Failed to read fieldName")
@@ -163,7 +159,7 @@ func ReadRows(r *Reader) (Row, error) {
 			rows.cols = append(rows.cols, fieldName)
 			r.Discard(4 + 2) //skip tableOid, column index
 
-			typeOid, err := r.Read4Bytes()
+			typeOid, err := r.Read4BytesUint32()
 			if err != nil {
 				panic(err)
 			}
@@ -200,8 +196,11 @@ func ReadStmtComplete(r *Reader, c byte) error {
 	return nil
 }
 
-func ReadResult(r *Reader) (driver.Result, error) {
-	for {
+func ReadResult(r *Reader, q string) (driver.Result, error) {
+	commands := len(strings.SplitAfter(strings.TrimRight(q, ";"), ";"))
+	n := 0
+	for range commands {
+		n++
 		t, err := r.ReadByte()
 		if err != nil {
 			return nil, err
@@ -218,13 +217,15 @@ func ReadResult(r *Reader) (driver.Result, error) {
 			if err != nil {
 				return nil, err
 			}
-			if strings.HasPrefix(tag, "CREATE") {
-				return driver.ResultNoRows, nil
+			if n == commands {
+				if strings.HasPrefix(tag, "CREATE") {
+					return driver.ResultNoRows, nil
+				}
+				return driver.RowsAffected(0), nil
 			}
-			return driver.RowsAffected(0), nil
 		default:
 			panic(t)
 		}
-
 	}
+	return nil, nil
 }

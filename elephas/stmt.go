@@ -100,6 +100,9 @@ func (st Stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 	if err != nil {
 		return nil, err
 	}
+	if err := CheckReadyForQuery(st.reader, Idle); err != nil {
+		return nil, err
+	}
 	rows, err := ReadRows(st.reader)
 	if err != nil {
 		return nil, err
@@ -123,5 +126,10 @@ func CheckCommandCompletion(r *Reader) error {
 	} else if bc != commandComplete {
 		return fmt.Errorf("Expected CommandCompletion(68) but got %v", bc)
 	}
-	return nil
+	l, err := r.Read4Bytes()
+	if err != nil {
+		return err
+	}
+	_, err = r.Discard(int(l))
+	return err
 }

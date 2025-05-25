@@ -5,7 +5,6 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"strings"
 
 	"mellium.im/sasl"
@@ -62,7 +61,6 @@ func (b *Buffer) buildSASLResponse(saslChallenge []byte) []byte {
 }
 
 func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
-	log.Println(query)
 	for _, arg := range args {
 		query = strings.Replace(query, "?", aToString(arg.Value), 1)
 	}
@@ -181,6 +179,9 @@ func (b *Buffer) buildDescribe(name string) []byte {
 }
 
 func aToString(value driver.Value) string {
+	if value == nil {
+		return "null"
+	}
 	s, ok := value.(string)
 	if !ok {
 		return fmt.Sprintf("%v", value)

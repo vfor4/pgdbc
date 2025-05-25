@@ -33,9 +33,9 @@ type TransactionStatus int
 
 // https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-READYFORQUERY
 const (
-	I TransactionStatus = 73
-	T TransactionStatus = 84
-	E TransactionStatus = 69
+	Idle TransactionStatus = 73
+	InTx TransactionStatus = 84
+	E    TransactionStatus = 69
 )
 
 type CommandTag string
@@ -52,4 +52,8 @@ type Format uint16
 const (
 	fmtText Format = iota
 	fmtBinary
+)
+
+const (
+	NULL_SIZE = -1
 )

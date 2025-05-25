@@ -40,7 +40,7 @@ func ReadDataRow(dest []driver.Value, r *Row) error {
 		return err
 	}
 	if msgType != dataRow {
-		panic(fmt.Errorf("expected data row - D(68) type but got %v", msgType))
+		panic(fmt.Errorf("Expected DataRow(68), but got %v", msgType))
 	}
 	if _, err = r.reader.Read4Bytes(); err != nil {
 		panic(err)

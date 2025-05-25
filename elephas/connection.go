@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -62,7 +63,7 @@ func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.S
 var hw hash.Hash = sha256.New()
 
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
-	if err := ReadReadyForQuery(c.reader); err != nil {
+	if err := CheckReadyForQuery(c.reader, Idle); err != nil {
 		return nil, err
 	}
 	var b Buffer
@@ -98,6 +99,9 @@ func (c *Connection) Begin() (driver.Tx, error) {
 }
 
 func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	if err := CheckReadyForQuery(c.reader, Idle); err != nil {
+		return nil, err
+	}
 	if sql.IsolationLevel(opts.Isolation) != sql.LevelDefault {
 		return nil, errors.New("Not implemented")
 	}
@@ -109,15 +113,18 @@ func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 	if err != nil {
 		return nil, err
 	}
-	cmdTag, err := c.reader.ReadCommandComplete()
+	t, err := c.reader.ReadByte()
 	if err != nil {
-		return nil, fmt.Errorf("Unable to ReadAndExpect(%v)", commandComplete)
-	}
-	if cmdTag != string(beginCmd) {
-		return nil, fmt.Errorf("Expect BEGIN command tag but got (%v)", cmdTag)
-	}
-	if err := ReadReadyForQuery(c.reader); err != nil {
 		return nil, err
+	}
+	if t == commandComplete {
+		cmdTag, err := ReadCommandComplete(c.reader)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		if cmdTag[0] != string(beginCmd) {
+			return nil, fmt.Errorf("Expect BEGIN command tag but got (%v)", cmdTag)
+		}
 	}
 	return NewTransaction(c), nil
 }
@@ -256,10 +263,12 @@ func NewConnection(ctx context.Context, cfg *Config) (*Connection, error) {
 }
 
 func (c *Connection) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if err := CheckReadyForQuery(c.reader, Idle); err != nil {
+		return nil, err
+	}
 	var b Buffer
-	_, err := c.netConn.Write(b.buildQuery(query, args))
-	if err != nil {
-		panic(err)
+	if _, err := c.netConn.Write(b.buildQuery(query, args)); err != nil {
+		return nil, err
 	}
 	rows, err := ReadRows(c.reader)
 	if err != nil {
@@ -269,7 +278,7 @@ func (c *Connection) QueryContext(ctx context.Context, query string, args []driv
 }
 
 func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if err := ReadReadyForQuery(c.reader); err != nil {
+	if err := CheckReadyForQuery(c.reader, Idle); err != nil {
 		return nil, err
 	}
 	var b Buffer
@@ -277,7 +286,7 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 	if err != nil {
 		return nil, err
 	}
-	r, err := ReadResult(c.reader)
+	r, err := ReadResult(c.reader, query)
 	if err != nil {
 		return nil, err
 	}
@@ -304,22 +313,21 @@ func (c *Connection) Ping(ctx context.Context) error {
 		case rowDescription:
 			_, _ = c.reader.Discard(int(l - 4))
 		case dataRow:
-			fc, err := c.reader.Read2Bytes()
-			if err != nil {
+			if fc, err := c.reader.Read2Bytes(); err != nil {
 				return err
-			}
-			if fc != 1 {
+			} else if fc != 1 {
 				return errors.New("field count is not 1")
 			}
-			cl, err := c.reader.Read4Bytes()
-			if err != nil {
+			if cl, err := c.reader.Read4Bytes(); err != nil {
 				return err
-			}
-			if cl != 1 {
+			} else if cl != 1 {
 				return errors.New("column length is not 1")
 			}
-			d, err := c.reader.ReadByte()
-			log.Println(string(d))
+			if d, err := c.reader.ReadByte(); err != nil {
+				return err
+			} else if d != 49 {
+				return fmt.Errorf("Expected 1 but got %v", string(d))
+			}
 		case commandComplete:
 			_, _ = c.reader.Discard(int(l - 4))
 		case readyForQuery:

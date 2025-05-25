@@ -63,6 +63,5 @@ func ReadCommandComplete(r *Reader) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return strings.Split(tag[:len(tag)-1], " "), io.EOF
 }
