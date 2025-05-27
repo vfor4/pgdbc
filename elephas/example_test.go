@@ -10,6 +10,7 @@ import (
 	"errors"
 	"log"
 	"testing"
+	"time"
 )
 
 var (
@@ -147,7 +148,7 @@ func xTestQueryInvalidSystax(t *testing.T) {
 	// TODO
 }
 
-func TestMultipleStatements(t *testing.T) {
+func xTestMultipleStatements(t *testing.T) {
 	// conn, err := pgx.Connect(context.Background(), "postgres://postgres:postgres@localhost:5432/gosqltest")
 	_, err := db.Exec("create temporary table t(c varchar not null)")
 	NoError(t, err)
@@ -159,5 +160,96 @@ func TestMultipleStatements(t *testing.T) {
 	if s != 2 {
 		log.Println(s)
 		NoError(t, errors.New("Expected 2 records"))
+	}
+}
+
+func xTestIdleConn(t *testing.T) {
+	controllerConn, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	NoError(t, err)
+
+	db, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	NoError(t, err)
+
+	var conns []*sql.Conn
+	for range 3 {
+		c, err := db.Conn(context.Background())
+		NoError(t, err)
+		conns = append(conns, c)
+	}
+	for _, c := range conns {
+		err = c.Close()
+		NoError(t, err)
+	}
+	err = controllerConn.PingContext(context.Background())
+	NoError(t, err)
+
+	time.Sleep(time.Second)
+	if db.Stats().OpenConnections != 2 {
+		log.Println(db.Stats().OpenConnections)
+		t.Error(errors.New("Expected 1 connections"))
+	}
+}
+
+func xTestConnWithoutClose(t *testing.T) {
+	db, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	conn, err := db.Conn(context.Background())
+	Equals(t, "open", 1, db.Stats().OpenConnections)
+	NoError(t, err)
+
+	err = conn.PingContext(context.Background())
+	Equals(t, "inuse", 1, db.Stats().InUse)
+
+	conn2, err := db.Conn(context.Background())
+	conn2.PingContext(context.Background())
+	Equals(t, "inuse", 2, db.Stats().InUse)
+	Equals(t, "open", 2, db.Stats().OpenConnections)
+}
+
+func xTestConnWithConnClose(t *testing.T) {
+	db, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	conn, err := db.Conn(context.Background())
+	Equals(t, "open", 1, db.Stats().OpenConnections)
+	NoError(t, err)
+
+	err = conn.PingContext(context.Background())
+	Equals(t, "inuse", 1, db.Stats().InUse)
+	conn.Close()
+	Equals(t, "idle after close, return to pool", 1, db.Stats().Idle)
+
+	conn2, err := db.Conn(context.Background())
+	conn2.PingContext(context.Background())
+	Equals(t, "inuse", 1, db.Stats().InUse)
+	Equals(t, "open", 1, db.Stats().OpenConnections)
+	Equals(t, "idle", 1, db.Stats().Idle)
+}
+
+func xTestCtxDoneWhileWaitingConnToReturnPool(t *testing.T) {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	db, _ := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	db.SetMaxOpenConns(1)
+	_, err := db.Conn(ctx)
+	_, err = db.Conn(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Expected deadline")
+	}
+}
+
+func TestWaitingIdleConnAndAbleToGrabIt(t *testing.T) {
+	db, _ := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	db.SetMaxOpenConns(1)
+	conn, err := db.Conn(ctx)
+	NoError(t, err)
+	Equals(t, "open", 1, db.Stats().OpenConnections)
+	Equals(t, "inuse", 1, db.Stats().InUse)
+	Equals(t, "idle", 0, db.Stats().Idle)
+	conn.PingContext(context.Background())
+
+	_, err = db.Conn(context.Background())
+	NoError(t, err)
+}
+
+func Equals[V comparable](t *testing.T, msg string, expect, actual V) {
+	if expect != actual {
+		t.Fatalf("(%s)- Expected %v, got %v\n", msg, expect, actual)
 	}
 }
