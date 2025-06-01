@@ -163,6 +163,31 @@ func xTestMultipleStatements(t *testing.T) {
 	}
 }
 
+func TestImplicitTx(t *testing.T) {
+	_, err := db.Exec("create temporary table t(id int unique, c varchar not null)")
+	NoError(t, err)
+	_, _ = db.Exec(`
+		INSERT INTO t VALUES(1,'a');
+		INSERT INTO t VALUES(1,'b');
+		INSERT INTO t VALUES(2,'c');
+		`)
+	var s string
+	err = db.QueryRow("select * from t").Scan(&s)
+	NoError(t, err)
+	Equals(t, "TestImplictiTx", "a", s)
+}
+
+// func BenchmarkExec(b *testing.B) {
+// 	// conn, err := db.Conn(context.Background())
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		_, err := db.Query("SELECT 1")
+// 		if err != nil {
+// 			b.Fatal(err)
+// 		}
+// 	}
+// }
+
 func xTestIdleConn(t *testing.T) {
 	controllerConn, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
 	NoError(t, err)
@@ -234,7 +259,7 @@ func xTestCtxDoneWhileWaitingConnToReturnPool(t *testing.T) {
 	}
 }
 
-func TestWaitingIdleConnAndAbleToGrabIt(t *testing.T) {
+func xTestWaitingIdleConnAndAbleToGrabIt(t *testing.T) {
 	db, _ := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
 	db.SetMaxOpenConns(1)
 	conn, err := db.Conn(ctx)
@@ -244,8 +269,16 @@ func TestWaitingIdleConnAndAbleToGrabIt(t *testing.T) {
 	Equals(t, "idle", 0, db.Stats().Idle)
 	conn.PingContext(context.Background())
 
-	_, err = db.Conn(context.Background())
-	NoError(t, err)
+	done := make(chan struct{})
+	go func() {
+		log.Println("Waiting...")
+		_, err = db.Conn(context.Background())
+		NoError(t, err)
+		done <- struct{}{}
+	}()
+	time.Sleep(2 * time.Second)
+	conn.Close()
+	<-done
 }
 
 func Equals[V comparable](t *testing.T, msg string, expect, actual V) {

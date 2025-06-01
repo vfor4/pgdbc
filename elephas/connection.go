@@ -25,37 +25,6 @@ type Connection struct {
 	reader  *Reader
 }
 
-// func (c *Connection) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-// 	var b Buffer
-// 	log.Println("ExecContext")
-// 	portalName := "portalvu"
-// 	_, err := c.netConn.Write(b.buildBindCmd(name, portalName))
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	q := b.buildQuery(query, args)
-// 	log.Println(q)
-// 	_, err = c.netConn.Write(b.buildQuery(query, args))
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	tags, err := ReadCommandComplete(c.reader)
-// 	if err != nil {
-// 		if err != io.EOF {
-// 			return nil, err
-// 		}
-// 	}
-//
-// 	effectedRows, err := strconv.Atoi(tags[1])
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return driver.RowsAffected(effectedRows), nil
-// }
-
-// PrepareContext returns a prepared statement, bound to this connection.
-// context is for the preparation of the statement,
-// it must not store the context within the statement itself.
 func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	return c.Prepare(query)
 }

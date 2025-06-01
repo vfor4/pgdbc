@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -197,7 +198,8 @@ func ReadStmtComplete(r *Reader, c byte) error {
 }
 
 func ReadResult(r *Reader, q string) (driver.Result, error) {
-	commands := len(strings.SplitAfter(strings.TrimRight(q, ";"), ";"))
+	commands := len(strings.SplitAfter(strings.TrimRight(strings.TrimSpace(q), ";"), ";"))
+	log.Println(commands)
 	n := 0
 	for range commands {
 		n++
