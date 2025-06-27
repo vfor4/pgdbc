@@ -44,7 +44,7 @@ func CheckReadyForQuery(r *Reader, txs TransactionStatus) error {
 		if t, err := r.ReadByte(); err != nil {
 			return err
 		} else if t != readyForQuery {
-			return fmt.Errorf("Expected ReadForQuery but got (%v)", t)
+			panic(fmt.Sprintf("Expected ReadForQuery but got (%v)", t))
 		}
 		_, err := r.Read4Bytes()
 		if err != nil {
@@ -53,7 +53,7 @@ func CheckReadyForQuery(r *Reader, txs TransactionStatus) error {
 		if s, err := r.ReadByte(); err != nil {
 			return err
 		} else if TransactionStatus(s) == E {
-			return fmt.Errorf("Expected %v status but got ERROR(%v)", txs, E)
+			panic(fmt.Sprintf("Expected %v status but got ERROR(%v)", txs, E))
 		}
 	}
 	return nil
@@ -198,19 +198,18 @@ func ReadStmtComplete(r *Reader, c byte) error {
 }
 
 func ReadResult(r *Reader, q string) (driver.Result, error) {
-	commands := len(strings.SplitAfter(strings.TrimRight(strings.TrimSpace(q), ";"), ";"))
-	log.Println(commands)
-	n := 0
-	for range commands {
-		n++
-		t, err := r.ReadByte()
+	var rowsEffected int
+	for {
+		t, err := r.Peek(1)
 		if err != nil {
 			return nil, err
 		}
-		switch t {
+		switch t[0] {
 		case errorResponseMsg:
+			r.Discard(1)
 			return nil, ReadErrorResponse(r)
 		case commandComplete:
+			r.Discard(1)
 			_, err := r.Read4Bytes()
 			if err != nil {
 				return nil, err
@@ -219,15 +218,15 @@ func ReadResult(r *Reader, q string) (driver.Result, error) {
 			if err != nil {
 				return nil, err
 			}
-			if n == commands {
-				if strings.HasPrefix(tag, "CREATE") {
-					return driver.ResultNoRows, nil
-				}
-				return driver.RowsAffected(0), nil
+			if strings.HasPrefix(tag, "INSERT") {
+				rowsEffected++
 			}
+			log.Println(tag)
 		default:
-			panic(t)
+			if t[0] == readyForQuery {
+				return driver.RowsAffected(rowsEffected), nil
+			}
+
 		}
 	}
-	return nil, nil
 }

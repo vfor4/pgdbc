@@ -129,9 +129,7 @@ func (c *Connection) makeHandShake() error {
 			c.reader.Discard(int(msgLen - 4))
 			return nil
 		case errorResponseMsg:
-			// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-ERRORRESPONSE
-			errResponse := ReadErrorResponse(c.reader)
-			panic(fmt.Sprintf("Server response with an error = %+v\n", errResponse.Error()))
+			panic(ReadErrorResponse(c.reader))
 		default:
 			panic(fmt.Sprintf("Not expected type %v", msgType))
 		}

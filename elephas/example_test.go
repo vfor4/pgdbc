@@ -166,13 +166,16 @@ func xTestMultipleStatements(t *testing.T) {
 func TestImplicitTx(t *testing.T) {
 	_, err := db.Exec("create temporary table t(id int unique, c varchar not null)")
 	NoError(t, err)
-	_, _ = db.Exec(`
+	r, err := db.Exec(`
 		INSERT INTO t VALUES(1,'a');
-		INSERT INTO t VALUES(1,'b');
-		INSERT INTO t VALUES(2,'c');
+		INSERT INTO t VALUES(2,'b');
+		INSERT INTO t VALUES(3,'b');
 		`)
+	re, err := r.RowsAffected()
+	NoError(t, err)
+	Equals(t, "RowsEffected", 3, re)
 	var s string
-	err = db.QueryRow("select * from t").Scan(&s)
+	err = db.QueryRow("select c from t").Scan(&s)
 	NoError(t, err)
 	Equals(t, "TestImplictiTx", "a", s)
 }

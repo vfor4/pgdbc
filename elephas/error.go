@@ -1,9 +1,6 @@
 package elephas
 
-import (
-	"fmt"
-	"log"
-)
+import "fmt"
 
 type ErrorLevel string
 
@@ -14,39 +11,51 @@ const (
 	// WARNING ErrorLevel = "WARNING"
 )
 
-type ErrorResponse error
+type ErrorResponse struct {
+	severity ErrorLevel
+	message  string
+	detail   string
+}
+
+func (e ErrorResponse) Error() string {
+	return fmt.Sprintf("%s: %s: %s", e.severity, e.message, e.detail)
+}
 
 func ReadErrorResponse(r *Reader) ErrorResponse {
-	var severity string
-	_, err := r.Read4Bytes()
+	var er ErrorResponse
+	_, err := r.Read4Bytes() // length
 	if err != nil {
-		return fmt.Errorf("Failed to read; %v", err)
+		panic(err)
 	}
 	for {
-		field, err := r.Reader.ReadByte()
+		fieldType, err := r.Reader.ReadByte()
 		if err != nil {
-			return fmt.Errorf("Failed to read; %v", err)
+			panic(err)
 		}
-		switch field {
+		switch fieldType {
 		case 'S':
 			s, err := r.Reader.ReadBytes(0)
-			s = s[:len(s)-1]
 			if err != nil {
-				return fmt.Errorf("Failed to read; %v", err)
+				panic(err)
 			}
-			severity = string(s)
+			er.severity = ErrorLevel(s)
+		case 'V', 'C':
+			_, _ = r.Reader.ReadBytes(0)
 		case 'M':
-			m, err := r.Reader.ReadBytes(0)
+			s, err := r.Reader.ReadString(0)
 			if err != nil {
-				return fmt.Errorf("Failed to read; %v", err)
+				panic(err)
 			}
-			em := string(m)
-			if severity == string(FATAL) {
-				log.Fatal(em)
+			er.message = string(s)
+		case 'D':
+			s, err := r.Reader.ReadString(0)
+			if err != nil {
+				panic(err)
 			}
-			return fmt.Errorf(em)
+			er.detail = s
 		default:
-			r.Reader.ReadBytes(0)
+			r.Reader.Discard(r.Reader.Buffered())
+			return er
 		}
 	}
 }
