@@ -20,6 +20,9 @@ const (
 	flushCommand     = 'H'
 	syncCommand      = 'S'
 	describeCommand  = 'D'
+	copyInResponse   = 'G'
+	copyData         = 'd'
+	copyDone         = 'c'
 	parseComplete    = '1'
 	bindComplete     = '2'
 

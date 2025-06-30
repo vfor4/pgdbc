@@ -3,12 +3,10 @@ package elephas
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"hash"
 	"io"
 	"log"
 	"net"
@@ -29,20 +27,13 @@ func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.S
 	return c.Prepare(query)
 }
 
-var hw hash.Hash = sha256.New()
-
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
+	want := strings.Count(query, "?")
 	if err := CheckReadyForQuery(c.reader, Idle); err != nil {
 		return nil, err
 	}
 	var b Buffer
-	_, _ = hw.Write([]byte(query))
-	name := fmt.Sprintf("%x", hw.Sum(nil))
-	w := strings.Count(query, "?")
-	for i := range w {
-		query = strings.Replace(query, "?", fmt.Sprintf("$%d", i+1), 1)
-	}
-	_, err := c.netConn.Write(b.buidParseCmd(query, name, w))
+	_, err := c.netConn.Write(b.buidParseCmd(query, want))
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +46,7 @@ func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 		return nil, err
 	}
 
-	return &Stmt{netConn: c.netConn, reader: c.reader, statement: name, want: w}, nil
+	return &Stmt{netConn: c.netConn, reader: c.reader, statement: name, want: want}, nil
 }
 
 func (c *Connection) Close() error {
@@ -87,12 +78,9 @@ func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 		return nil, err
 	}
 	if t == commandComplete {
-		cmdTag, err := ReadCommandComplete(c.reader)
+		_, err := ReadCommandComplete(c.reader)
 		if err != nil && err != io.EOF {
 			return nil, err
-		}
-		if cmdTag[0] != string(beginCmd) {
-			return nil, fmt.Errorf("Expect BEGIN command tag but got (%v)", cmdTag)
 		}
 	}
 	return NewTransaction(c), nil
@@ -253,12 +241,31 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 	if err != nil {
 		return nil, err
 	}
-	r, err := ReadResult(c.reader, query)
-	if err != nil {
-		return nil, err
-	}
+	pn, err := c.reader.Peek(1)
+	if pn[0] == copyInResponse {
+		if byten, ok := args[0].Value.([]byte); ok && len(byten) != 0 {
+			log.Println(query, args)
+			_, err := c.netConn.Write(b.buildCopyData(byten))
+			if err != nil {
+				panic(err)
+			}
+			_, err = c.netConn.Write(b.buildCopyDone())
+			if err != nil {
+				panic(err)
+			}
 
-	return r, nil
+			return nil, nil
+		} else {
+			return nil, errors.New("copy data is nil")
+		}
+	} else {
+		r, err := ReadResult(c.reader, query)
+		if err != nil {
+			return nil, err
+		}
+
+		return r, nil
+	}
 }
 
 func (c *Connection) Ping(ctx context.Context) error {

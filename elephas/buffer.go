@@ -2,9 +2,11 @@ package elephas
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
+	"hash"
 	"strings"
 
 	"mellium.im/sasl"
@@ -75,17 +77,24 @@ func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 	return data
 }
 
+var hw hash.Hash = sha256.New()
+
 // TODO have to refactor
-func (b *Buffer) buidParseCmd(query, name string, p int) []byte {
+func (b *Buffer) buidParseCmd(query string, params int) []byte {
+	_, _ = hw.Write([]byte(query))
+	name := fmt.Sprintf("%x", hw.Sum(nil))
+	for i := range params {
+		query = strings.Replace(query, "?", fmt.Sprintf("$%d", i+1), 1)
+	}
 	b.WriteByte(parseCommand)
 	b.Write([]byte{0, 0, 0, 0})
 	b.WriteString(name)
 	b.WriteByte(0)
 	b.WriteString(query)
 	b.WriteByte(0)
-	buf := binary.BigEndian.AppendUint16(make([]byte, 0, p), uint16(p))
+	buf := binary.BigEndian.AppendUint16(make([]byte, 0, params), uint16(params))
 	b.Write(buf)
-	for range p {
+	for range params {
 		b.Write([]byte{0, 0, 0, 0})
 	}
 	data := b.Bytes()
@@ -178,6 +187,23 @@ func (b *Buffer) buildDescribe(name string) []byte {
 	return data
 }
 
+func (b *Buffer) buildCopyData(byten []byte) []byte {
+	b.WriteByte(copyData)
+	t := make([]byte, 4)
+	binary.BigEndian.PutUint32(t, uint32(len(byten)+4))
+	b.Write(t)
+	b.Write(byten)
+	data := b.Bytes()
+	b.Reset()
+	return data
+}
+func (b *Buffer) buildCopyDone() []byte {
+	b.WriteByte(copyDone)
+	b.Write([]byte{0, 0, 0, 4})
+	data := b.Bytes()
+	b.Reset()
+	return data
+}
 func aToString(value driver.Value) string {
 	if value == nil {
 		return "null"

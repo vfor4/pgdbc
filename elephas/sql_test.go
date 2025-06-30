@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"runtime/debug"
 	"testing"
 	"time"
 )
@@ -42,7 +43,14 @@ func TestMain(m *testing.M) {
 
 func NoError(t *testing.T, err error) {
 	if err != nil {
+		debug.PrintStack()
 		t.Fatal(err)
+	}
+}
+func YesError(t *testing.T, err error) {
+	if err == nil {
+		debug.PrintStack()
+		t.Fatal("Expected error")
 	}
 }
 
@@ -131,11 +139,9 @@ func xTestTxLifeCycle(t *testing.T) {
 	NoError(t, err)
 	var s string
 	if err = db.QueryRow("select c from t where c = ?", value).Scan(&s); err != sql.ErrNoRows {
-		t.Error("Expected ErrNoRows ")
+		t.Error("Expected ErrNoRows")
 	}
 	_, err = db.Exec("insert into t(c) values (?)", value)
-	NoError(t, err)
-	err = tx.Commit()
 	NoError(t, err)
 	err = db.QueryRow("select c from t where c = ?", value).Scan(&s)
 	NoError(t, err)
@@ -144,8 +150,27 @@ func xTestTxLifeCycle(t *testing.T) {
 	}
 }
 
-func xTestQueryInvalidSystax(t *testing.T) {
-	// TODO
+func TestOpenTxTwice(t *testing.T) {
+	_, _ = db.Exec("truncate test")
+
+	tx, err := db.BeginTx(context.Background(), nil)
+	NoError(t, err)
+	_, err = tx.Exec("insert into test values(1,'a')")
+	NoError(t, err)
+	err = tx.Commit()
+	NoError(t, err)
+
+	tx2, err := db.BeginTx(context.Background(), nil)
+	NoError(t, err)
+	_, err = tx2.Exec("insert into test values(2, 'b')")
+	NoError(t, err)
+	err = tx2.Commit()
+	NoError(t, err)
+
+	var i int
+	err = db.QueryRow("select count(id) from test").Scan(&i)
+	NoError(t, err)
+	Equals(t, "open tx twice", 2, i)
 }
 
 func xTestMultipleStatements(t *testing.T) {
@@ -163,7 +188,7 @@ func xTestMultipleStatements(t *testing.T) {
 	}
 }
 
-func TestImplicitTx(t *testing.T) {
+func xTestMultpleExtendedQuery(t *testing.T) {
 	_, err := db.Exec("create temporary table t(id int unique, c varchar not null)")
 	NoError(t, err)
 	r, err := db.Exec(`
@@ -177,6 +202,33 @@ func TestImplicitTx(t *testing.T) {
 	var s string
 	err = db.QueryRow("select c from t").Scan(&s)
 	NoError(t, err)
+	Equals(t, "TestImplictiTx", "a", s)
+}
+
+func xTestImplitTx(t *testing.T) {
+	_, err := db.Exec("create temporary table t(id int unique, c varchar not null)")
+	NoError(t, err)
+	_, err = db.Exec(`
+		INSERT INTO t VALUES(1,'a');
+		INSERT INTO t VALUES(1,'b');
+		INSERT INTO t VALUES(3,'b');
+		`)
+	YesError(t, err)
+}
+
+func xTestExplitcitTx(t *testing.T) {
+	_, err := db.Exec("truncate test")
+	NoError(t, err)
+	_, err = db.Exec(`
+		BEGIN;
+		INSERT INTO test VALUES(1, 'a');
+		COMMIT;
+		INSERT INTO test VALUES(2, 'b');
+		SELECT 1/0;
+		`)
+	YesError(t, err)
+	var s string
+	err = db.QueryRow("select n from test where id = ?", 1).Scan(&s)
 	Equals(t, "TestImplictiTx", "a", s)
 }
 

@@ -40,20 +40,25 @@ func (r Reader) Read2Bytes() (uint16, error) {
 }
 
 func CheckReadyForQuery(r *Reader, txs TransactionStatus) error {
-	if r.Buffered() > 0 {
-		if t, err := r.ReadByte(); err != nil {
-			return err
-		} else if t != readyForQuery {
-			panic(fmt.Sprintf("Expected ReadForQuery but got (%v)", t))
-		}
-		_, err := r.Read4Bytes()
+	for r.Buffered() > 0 {
+		t, err := r.ReadByte()
 		if err != nil {
-			return err
+			panic(err)
 		}
-		if s, err := r.ReadByte(); err != nil {
-			return err
-		} else if TransactionStatus(s) == E {
-			panic(fmt.Sprintf("Expected %v status but got ERROR(%v)", txs, E))
+		l, err := r.Read4Bytes()
+		if err != nil {
+			panic(err)
+		}
+		switch t {
+		case readyForQuery:
+			if s, err := r.ReadByte(); err != nil {
+				return err
+			} else if TransactionStatus(s) == E {
+				panic(fmt.Sprintf("Expected %v status but got ERROR(%v)", txs, E))
+			}
+			return nil
+		default:
+			_, _ = r.Discard(int(l) - 4)
 		}
 	}
 	return nil

@@ -18,7 +18,11 @@ type ErrorResponse struct {
 }
 
 func (e ErrorResponse) Error() string {
-	return fmt.Sprintf("%s: %s: %s", e.severity, e.message, e.detail)
+	em := fmt.Sprintf("%s: %s", e.severity, e.message)
+	if e.detail != "" {
+		return fmt.Sprintf("%s: %s", em, e.detail)
+	}
+	return em
 }
 
 func ReadErrorResponse(r *Reader) ErrorResponse {
