@@ -243,6 +243,21 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 	}
 	pn, err := c.reader.Peek(1)
 	if pn[0] == copyInResponse {
+		_, _ = c.reader.Discard(1)
+		_, err := c.reader.Read4Bytes()
+		if err != nil {
+			panic(err)
+		}
+		if format, err := c.reader.ReadByte(); err != nil {
+			panic(err)
+		} else if format == 1 {
+			panic("TODO support binary")
+		}
+		columns, err := c.reader.Read2Bytes()
+		if err != nil {
+			panic(err)
+		}
+		_, _ = c.reader.Discard(int(columns) * 2)
 		if byten, ok := args[0].Value.([]byte); ok && len(byten) != 0 {
 			log.Println(query, args)
 			_, err := c.netConn.Write(b.buildCopyData(byten))
@@ -253,19 +268,16 @@ func (c *Connection) ExecContext(ctx context.Context, query string, args []drive
 			if err != nil {
 				panic(err)
 			}
-
-			return nil, nil
 		} else {
 			return nil, errors.New("copy data is nil")
 		}
-	} else {
-		r, err := ReadResult(c.reader, query)
-		if err != nil {
-			return nil, err
-		}
-
-		return r, nil
 	}
+	r, err := ReadResult(c.reader, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
 }
 
 func (c *Connection) Ping(ctx context.Context) error {

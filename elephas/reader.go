@@ -211,10 +211,10 @@ func ReadResult(r *Reader, q string) (driver.Result, error) {
 		}
 		switch t[0] {
 		case errorResponseMsg:
-			r.Discard(1)
+			_, _ = r.Discard(1)
 			return nil, ReadErrorResponse(r)
 		case commandComplete:
-			r.Discard(1)
+			_, _ = r.Discard(1)
 			_, err := r.Read4Bytes()
 			if err != nil {
 				return nil, err
