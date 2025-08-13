@@ -27,7 +27,14 @@ func TestCopyFromCSV(t *testing.T) {
 	NoError(t, err)
 	var id int
 	var s string
-	err = db.QueryRow("select * from t where id = ?", 1).Scan(&id, &s)
+	err = db.QueryRow("select * from t where id = ?", 6).Scan(&id, &s)
 	Equals(t, "copy testing id", 6, id)
 	Equals(t, "copy testing n", "Frank", s)
+}
+
+func TestCopyToOneRowNoError(t *testing.T) {
+	_, err := db.Exec("create temporary table t(id int not null, n varchar not null); insert into t(id, n) values(1, 'zalo')")
+	NoError(t, err)
+	_, err = db.Exec("copy t(id,n) to STDOUT")
+	NoError(t, err)
 }
