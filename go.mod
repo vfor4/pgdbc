@@ -1,4 +1,4 @@
-module github.com/vfor4/gomic
+module github.com/vfor4/elephas
 
 go 1.23.0
 
