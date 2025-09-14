@@ -3,10 +3,12 @@ package elephas
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"net"
@@ -23,6 +25,8 @@ type Connection struct {
 	reader  *Reader
 }
 
+var hw hash.Hash = sha256.New()
+
 func (c *Connection) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	return c.Prepare(query)
 }
@@ -32,8 +36,10 @@ func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 	if err := CheckReadyForQuery(c.reader, Idle); err != nil {
 		return nil, err
 	}
+	_, _ = hw.Write([]byte(query))
+	name := fmt.Sprintf("%x", hw.Sum(nil))
 	var b Buffer
-	_, err := c.netConn.Write(b.buidParseCmd(query, want))
+	_, err := c.netConn.Write(b.buidParseCmd(query, want, name))
 	if err != nil {
 		return nil, err
 	}

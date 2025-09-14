@@ -42,5 +42,3 @@ func SendDataRowInCopy(c *Connection, args []driver.NamedValue) error {
 	}
 	return nil
 }
-
-func ReadDataRowCopyTo(c *Connection)

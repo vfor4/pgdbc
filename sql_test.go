@@ -7,6 +7,7 @@ package elephas
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"log"
 	"runtime/debug"
@@ -15,8 +16,8 @@ import (
 )
 
 var (
-	ctx context.Context = context.Background()
-	db  *sql.DB
+	ctx, _ = context.WithTimeout(context.Background(), time.Duration(5*time.Minute))
+	db     *sql.DB
 )
 
 type order_entity struct {
@@ -28,7 +29,7 @@ func TestMain(m *testing.M) {
 	log.SetFlags(log.Lshortfile)
 
 	var err error
-	db, err = sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	db, err = sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
 	if err != nil {
 		log.Fatalf("Failed to connect to user database: %v", err)
 	}
@@ -47,6 +48,14 @@ func NoError(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+func CloseRealConn(dc any) error {
+	if c, ok := dc.(driver.Conn); ok {
+		return c.Close()
+	}
+	return nil
+}
+
 func YesError(t *testing.T, err error) {
 	if err == nil {
 		debug.PrintStack()
@@ -54,11 +63,12 @@ func YesError(t *testing.T, err error) {
 	}
 }
 
-func xTestStmtExecContextSuccess(t *testing.T) {
-	_, err := db.Exec("create temporary table t(id int primary key)")
+func TestStmtExecContextSuccess(t *testing.T) {
+	conn, _ := db.Conn(ctx)
+	_, err := conn.ExecContext(ctx, "create temporary table t(id int primary key)")
 	NoError(t, err)
 
-	stmt, err := db.Prepare("insert into t(id) values (?)")
+	stmt, err := conn.PrepareContext(ctx, "insert into t(id) values (?)")
 	NoError(t, err)
 	defer stmt.Close()
 	values := []int32{42}
@@ -68,7 +78,7 @@ func xTestStmtExecContextSuccess(t *testing.T) {
 	}
 }
 
-func xTestStmtQueryContextSucess(t *testing.T) {
+func TestStmtQueryContextSucess(t *testing.T) {
 	stmt, err := db.Prepare("select * from generate_series(1,?) n")
 	NoError(t, err)
 	defer stmt.Close()
@@ -90,7 +100,7 @@ func xTestStmtQueryContextSucess(t *testing.T) {
 	}
 }
 
-func xTestConnQuery(t *testing.T) {
+func TestConnQuery(t *testing.T) {
 	rows, err := db.Query("select 'foo', n from generate_series(?, ?) n", int32(1), int32(10))
 	NoError(t, err)
 	rc := int32(0)
@@ -113,7 +123,7 @@ func xTestConnQuery(t *testing.T) {
 	NoError(t, err)
 }
 
-func xTestQueryNull(t *testing.T) {
+func TestQueryNull(t *testing.T) {
 	rows, err := db.Query("select ?", nil)
 	NoError(t, err)
 
@@ -127,10 +137,11 @@ func xTestQueryNull(t *testing.T) {
 	}
 }
 
-func xTestTxLifeCycle(t *testing.T) {
-	_, err := db.Exec("create temporary table t(c varchar not null)")
+func TestTxLifeCycle(t *testing.T) {
+	conn, _ := db.Conn(ctx)
+	_, err := conn.ExecContext(ctx, "create temporary table t(c varchar not null)")
 	NoError(t, err)
-	tx, err := db.BeginTx(context.Background(), nil)
+	tx, err := conn.BeginTx(context.Background(), nil)
 	NoError(t, err)
 	value := "a"
 	_, err = tx.Exec("insert into t values (?)", value)
@@ -138,12 +149,12 @@ func xTestTxLifeCycle(t *testing.T) {
 	err = tx.Rollback()
 	NoError(t, err)
 	var s string
-	if err = db.QueryRow("select c from t where c = ?", value).Scan(&s); err != sql.ErrNoRows {
+	if err = conn.QueryRowContext(ctx, "select c from t where c = ?", value).Scan(&s); err != sql.ErrNoRows {
 		t.Error("Expected ErrNoRows")
 	}
-	_, err = db.Exec("insert into t(c) values (?)", value)
+	_, err = conn.ExecContext(ctx, "insert into t(c) values (?)", value)
 	NoError(t, err)
-	err = db.QueryRow("select c from t where c = ?", value).Scan(&s)
+	err = conn.QueryRowContext(ctx, "select c from t where c = ?", value).Scan(&s)
 	NoError(t, err)
 	if s != "a" {
 		t.Errorf("Expected %v but got %v", value, s)
@@ -173,14 +184,14 @@ func TestOpenTxTwice(t *testing.T) {
 	Equals(t, "open tx twice", 2, i)
 }
 
-func xTestMultipleStatements(t *testing.T) {
-	// conn, err := pgx.Connect(context.Background(), "postgres://postgres:postgres@localhost:5432/gosqltest")
-	_, err := db.Exec("create temporary table t(c varchar not null)")
+func TestMultipleStatements(t *testing.T) {
+	conn, _ := db.Conn(ctx)
+	_, err := conn.ExecContext(ctx, "create temporary table t(c varchar not null)")
 	NoError(t, err)
-	_, err = db.Exec(`insert into t values('a'); insert into t values('b')`)
+	_, err = conn.ExecContext(ctx, `insert into t values('a'); insert into t values('b')`)
 	NoError(t, err)
 	var s int32
-	err = db.QueryRow("select count(*) from t").Scan(&s)
+	err = conn.QueryRowContext(ctx, "select count(*) from t").Scan(&s)
 	NoError(t, err)
 	if s != 2 {
 		log.Println(s)
@@ -188,10 +199,11 @@ func xTestMultipleStatements(t *testing.T) {
 	}
 }
 
-func xTestMultpleExtendedQuery(t *testing.T) {
-	_, err := db.Exec("create temporary table t(id int unique, c varchar not null)")
+func TestMultpleExtendedQuery(t *testing.T) {
+	conn, _ := db.Conn(ctx)
+	_, err := conn.ExecContext(ctx, "create temporary table t(id int unique, c varchar not null)")
 	NoError(t, err)
-	r, err := db.Exec(`
+	r, err := conn.ExecContext(ctx, `
 		INSERT INTO t VALUES(1,'a');
 		INSERT INTO t VALUES(2,'b');
 		INSERT INTO t VALUES(3,'b');
@@ -200,15 +212,16 @@ func xTestMultpleExtendedQuery(t *testing.T) {
 	NoError(t, err)
 	Equals(t, "RowsEffected", 3, re)
 	var s string
-	err = db.QueryRow("select c from t").Scan(&s)
+	err = conn.QueryRowContext(ctx, "select c from t").Scan(&s)
 	NoError(t, err)
 	Equals(t, "TestImplictiTx", "a", s)
 }
 
-func xTestImplitTx(t *testing.T) {
-	_, err := db.Exec("create temporary table t(id int unique, c varchar not null)")
+func TestImplitTx(t *testing.T) {
+	conn, _ := db.Conn(ctx)
+	_, err := conn.ExecContext(ctx, "create temporary table t(id int unique, c varchar not null)")
 	NoError(t, err)
-	_, err = db.Exec(`
+	_, err = conn.ExecContext(ctx, `
 		INSERT INTO t VALUES(1,'a');
 		INSERT INTO t VALUES(1,'b');
 		INSERT INTO t VALUES(3,'b');
@@ -216,7 +229,7 @@ func xTestImplitTx(t *testing.T) {
 	YesError(t, err)
 }
 
-func xTestExplitcitTx(t *testing.T) {
+func TestExplitcitTx(t *testing.T) {
 	_, err := db.Exec("truncate test")
 	NoError(t, err)
 	_, err = db.Exec(`
@@ -232,80 +245,61 @@ func xTestExplitcitTx(t *testing.T) {
 	Equals(t, "TestImplictiTx", "a", s)
 }
 
-// func BenchmarkExec(b *testing.B) {
-// 	// conn, err := db.Conn(context.Background())
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		_, err := db.Query("SELECT 1")
-// 		if err != nil {
-// 			b.Fatal(err)
-// 		}
-// 	}
-// }
-
-func xTestIdleConn(t *testing.T) {
-	controllerConn, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+func TestIdleConn(t *testing.T) {
+	controllerConn, err := sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
 	NoError(t, err)
 
-	db, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	db, err := sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
 	NoError(t, err)
 
 	var conns []*sql.Conn
 	for range 3 {
-		c, err := db.Conn(context.Background())
+		c, err := db.Conn(ctx)
 		NoError(t, err)
 		conns = append(conns, c)
 	}
+
 	for _, c := range conns {
 		err = c.Close()
 		NoError(t, err)
 	}
-	err = controllerConn.PingContext(context.Background())
+	err = controllerConn.PingContext(ctx)
 	NoError(t, err)
-
-	time.Sleep(time.Second)
-	if db.Stats().OpenConnections != 2 {
-		log.Println(db.Stats().OpenConnections)
-		t.Error(errors.New("Expected 1 connections"))
-	}
+	Equals(t, "Expected 2 connections", db.Stats().OpenConnections, 2)
 }
 
-func xTestConnWithoutClose(t *testing.T) {
-	db, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
-	conn, err := db.Conn(context.Background())
+func TestConnWithoutClose(t *testing.T) {
+	db, err := sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	conn, err := db.Conn(ctx)
 	Equals(t, "open", 1, db.Stats().OpenConnections)
 	NoError(t, err)
 
-	err = conn.PingContext(context.Background())
+	err = conn.PingContext(ctx)
 	Equals(t, "inuse", 1, db.Stats().InUse)
 
-	conn2, err := db.Conn(context.Background())
-	conn2.PingContext(context.Background())
+	conn2, err := db.Conn(ctx)
+	conn2.PingContext(ctx)
 	Equals(t, "inuse", 2, db.Stats().InUse)
 	Equals(t, "open", 2, db.Stats().OpenConnections)
 }
 
-func xTestConnWithConnClose(t *testing.T) {
-	db, err := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
-	conn, err := db.Conn(context.Background())
+func TestConnWithConnClose(t *testing.T) {
+	db, err := sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
+	conn, err := db.Conn(ctx)
 	Equals(t, "open", 1, db.Stats().OpenConnections)
 	NoError(t, err)
 
-	err = conn.PingContext(context.Background())
+	err = conn.PingContext(ctx)
 	Equals(t, "inuse", 1, db.Stats().InUse)
 	conn.Close()
-	Equals(t, "idle after close, return to pool", 1, db.Stats().Idle)
-
-	conn2, err := db.Conn(context.Background())
-	conn2.PingContext(context.Background())
-	Equals(t, "inuse", 1, db.Stats().InUse)
-	Equals(t, "open", 1, db.Stats().OpenConnections)
-	Equals(t, "idle", 1, db.Stats().Idle)
+	Equals(t, "closing call, no more in use", 0, db.Stats().InUse)
+	Equals(t, "closing call, return to pool", 1, db.Stats().Idle)
 }
 
-func xTestCtxDoneWhileWaitingConnToReturnPool(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second)
-	db, _ := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+func TestCtxDoneWhileWaitingConnToReturnPool(t *testing.T) {
+	ctx, ccFn := context.WithTimeout(context.Background(), time.Second)
+	defer ccFn()
+	db, _ := sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
 	db.SetMaxOpenConns(1)
 	_, err := db.Conn(ctx)
 	_, err = db.Conn(ctx)
@@ -314,15 +308,15 @@ func xTestCtxDoneWhileWaitingConnToReturnPool(t *testing.T) {
 	}
 }
 
-func xTestWaitingIdleConnAndAbleToGrabIt(t *testing.T) {
-	db, _ := sql.Open("elephas", "postgres://postgres:postgres@localhost:5432/gosqltest")
+func TestWaitingIdleConnAndAbleToGrabIt(t *testing.T) {
+	db, _ := sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
 	db.SetMaxOpenConns(1)
 	conn, err := db.Conn(ctx)
+	conn.PingContext(context.Background())
 	NoError(t, err)
 	Equals(t, "open", 1, db.Stats().OpenConnections)
 	Equals(t, "inuse", 1, db.Stats().InUse)
 	Equals(t, "idle", 0, db.Stats().Idle)
-	conn.PingContext(context.Background())
 
 	done := make(chan struct{})
 	go func() {

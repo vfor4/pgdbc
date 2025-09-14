@@ -2,11 +2,9 @@ package elephas
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
-	"hash"
 	"strings"
 
 	"mellium.im/sasl"
@@ -77,18 +75,14 @@ func (b *Buffer) buildQuery(query string, args []driver.NamedValue) []byte {
 	return data
 }
 
-var hw hash.Hash = sha256.New()
-
 // TODO have to refactor
-func (b *Buffer) buidParseCmd(query string, params int) []byte {
-	_, _ = hw.Write([]byte(query))
-	name := fmt.Sprintf("%x", hw.Sum(nil))
+func (b *Buffer) buidParseCmd(query string, params int, stmtName string) []byte {
 	for i := range params {
 		query = strings.Replace(query, "?", fmt.Sprintf("$%d", i+1), 1)
 	}
 	b.WriteByte(parseCommand)
 	b.Write([]byte{0, 0, 0, 0})
-	b.WriteString(name)
+	b.WriteString(stmtName)
 	b.WriteByte(0)
 	b.WriteString(query)
 	b.WriteByte(0)

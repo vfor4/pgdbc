@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const name = "elephas"
+const name = "pgdbc"
 
 type Driver struct {
 	connector *Connector
