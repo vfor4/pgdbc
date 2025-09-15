@@ -14,17 +14,23 @@ type Buffer struct {
 	bytes.Buffer
 }
 
-func (b *Buffer) buildStartUpMsg(user, db string) []byte {
+func (b *Buffer) buildStartUpMsg(cfg *Config) []byte {
 	b.Write([]byte{0, 0, 0, 0}) // placeholder for length of message contents
 	b.Write((binary.BigEndian.AppendUint32([]byte{}, 196608)))
-	b.WriteString("user")
+	b.WriteString(string(User))
 	b.WriteByte(0)
-	b.WriteString(user)
+	b.WriteString(cfg.User)
 	b.WriteByte(0)
-	b.WriteString("database")
+	b.WriteString(string(Database))
 	b.WriteByte(0)
-	b.WriteString(db)
+	b.WriteString(cfg.Database)
 	b.WriteByte(0)
+	if len(cfg.Replication) > 0 {
+		b.WriteString(string(Replication))
+		b.WriteByte(0)
+		b.WriteString(cfg.Replication)
+		b.WriteByte(0)
+	}
 	b.WriteByte(0) // null-terminated c-style string
 	data := b.Bytes()
 	binary.BigEndian.PutUint32(data, uint32(len(b.Bytes())))

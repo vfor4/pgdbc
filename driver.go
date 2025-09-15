@@ -46,11 +46,12 @@ func (d *Driver) parse(dsn string) (*Config, error) {
 	}
 	passw, _ := u.User.Password()
 	return &Config{
-		Network:  "tcp",
-		Addr:     u.Host,
-		User:     u.User.Username(),
-		Password: passw,
-		Database: u.Path[1:],
+		Network:     "tcp",
+		Addr:        u.Host,
+		User:        u.User.Username(),
+		Password:    passw,
+		Database:    u.Path[1:],
+		Replication: u.Query().Get("replication"),
 	}, nil
 }
 

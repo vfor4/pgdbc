@@ -95,7 +95,7 @@ func (c *Connection) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 // https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-START-UP
 func (c *Connection) makeHandShake() error {
 	var b Buffer
-	if _, err := c.netConn.Write(b.buildStartUpMsg(c.cfg.User, c.cfg.Database)); err != nil {
+	if _, err := c.netConn.Write(b.buildStartUpMsg(c.cfg)); err != nil {
 		log.Fatalf("Failed to make hande shake: %v", err)
 		return err
 	}

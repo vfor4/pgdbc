@@ -25,23 +25,6 @@ type order_entity struct {
 	name string
 }
 
-func TestMain(m *testing.M) {
-	log.SetFlags(log.Lshortfile)
-
-	var err error
-	db, err = sql.Open("pgdbc", "postgres://postgres:postgres@localhost:5432/gosqltest")
-	if err != nil {
-		log.Fatalf("Failed to connect to user database: %v", err)
-	}
-	if err = db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
-	}
-	_ = m.Run()
-	if err := db.Close(); err != nil {
-		log.Fatalf("Failed to close database: %v", err)
-	}
-}
-
 func NoError(t *testing.T, err error) {
 	if err != nil {
 		debug.PrintStack()
